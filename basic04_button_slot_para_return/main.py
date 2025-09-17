@@ -1,3 +1,4 @@
+# python3.10.11 - PySide6==6.9
 import sys
 from PySide6.QtCore import QObject, Slot
 from PySide6.QtGui import QGuiApplication
