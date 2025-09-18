@@ -9,9 +9,9 @@ class Backend(QObject):
     messageChanged = Signal(str)
 
     def __init__(self):
-        super().__init__()
-        # 使用定时器，每秒触发一次
+        super().__init__() # 初始化父类
         self.counter = 0
+        # 使用定时器，每秒触发一次
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.updateMessage)
         self.timer.start(1000)  # 1000毫秒
