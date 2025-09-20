@@ -5,29 +5,34 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 class Backend(QObject):
-    # 定义两个信号
-    signalA = Signal(str)
-    signalB = Signal(str)
+    # 定义两个信号，带 (来源, 次数) 参数
+    signalA = Signal(str, int)
+    signalB = Signal(str, int)
 
     def __init__(self):
         super().__init__()
-        # 两个信号都连接到同一个槽函数
+        self._countA = 0
+        self._countB = 0
+
+        # 两个信号连接到同一个槽函数
         self.signalA.connect(self.slot_handle_event)
         self.signalB.connect(self.slot_handle_event)
 
     @Slot()
     def emitSignalA(self):
+        self._countA += 1
         print("[Python] emitSignalA() called")
-        self.signalA.emit("来自 signalA 的参数")
+        self.signalA.emit("A", self._countA)  # 发射信号并携带参数
 
     @Slot()
     def emitSignalB(self):
+        self._countB += 1
         print("[Python] emitSignalB() called")
-        self.signalB.emit("来自 signalB 的参数")
+        self.signalB.emit("B", self._countB)  # 发射信号并携带参数
 
-    # 统一的槽函数
-    def slot_handle_event(self, message):
-        print(f"[Python] 槽函数：收到一个信号事件，参数 = {message}")
+    # 统一的槽函数，参数区分来源 + 次数
+    def slot_handle_event(self, source: str, count: int):
+        print(f"[Python] 槽函数：收到来自信号 {source} 的事件，第 {count} 次点击")
 
 if __name__ == "__main__":
     # 创建应用程序和引擎
