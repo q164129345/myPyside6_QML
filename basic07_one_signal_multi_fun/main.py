@@ -12,23 +12,16 @@ class Backend(QObject):
     def __init__(self):
         super().__init__()
         # 将一个信号连接到多个函数
-        self.buttonClicked.connect(self.slot_print_message)
-        self.buttonClicked.connect(self.slot_update_counter)
-
+        self.buttonClicked.connect(self.print_message)
+        self.buttonClicked.connect(self.update_counter)
         self._counter = 0
 
-    @Slot()
-    def emitSignal(self):
-        """供 QML 调用，触发 buttonClicked 信号"""
-        print("[Python] emitSignal() called")
-        self.buttonClicked.emit()
-
     # 打印信息
-    def slot_print_message(self):
+    def print_message(self):
         print("[Python] 槽函数1：按钮被点击")
 
     # 计数器更新
-    def slot_update_counter(self):
+    def update_counter(self):
         self._counter += 1
         print(f"[Python] 槽函数2：按钮点击次数 = {self._counter}")
 

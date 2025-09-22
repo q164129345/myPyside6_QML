@@ -13,7 +13,9 @@ Window {
 
         Button {
             text: "点击我 (触发Python信号)"
-            onClicked: backend.emitSignal()
+            onClicked: {
+                backend.buttonClicked() // 触发 Python 端的信号
+            }
         }
     }
 }
