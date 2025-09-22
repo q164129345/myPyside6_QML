@@ -13,12 +13,12 @@ Window {
 
         Button {
             text: "触发信号A"
-            onClicked: backend.emitSignalA()
+            onClicked: backend.signalA()
         }
 
         Button {
             text: "触发信号B"
-            onClicked: backend.emitSignalB()
+            onClicked: backend.signalB()
         }
     }
 }

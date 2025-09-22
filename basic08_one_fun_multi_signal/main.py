@@ -15,16 +15,6 @@ class Backend(QObject):
         self.signalA.connect(self.slot_handle_event)
         self.signalB.connect(self.slot_handle_event)
 
-    @Slot()
-    def emitSignalA(self):
-        print("[Python] emitSignalA() called")
-        self.signalA.emit()
-
-    @Slot()
-    def emitSignalB(self):
-        print("[Python] emitSignalB() called")
-        self.signalB.emit()
-
     # 统一的槽函数
     def slot_handle_event(self):
         print("[Python] 槽函数：收到一个信号事件")
