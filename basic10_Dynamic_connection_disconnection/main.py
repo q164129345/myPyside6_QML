@@ -12,19 +12,14 @@ class Backend(QObject):
         super().__init__()
         self._counter = 0
         # 默认只连接计数功能
-        self.buttonClicked.connect(self.slot_update_counter)
+        self.buttonClicked.connect(self.update_counter)
 
-    @Slot()
-    def emitSignal(self):
-        """供 QML 调用，触发信号"""
-        self.buttonClicked.emit()
-
-    # 槽函数1：打印消息
-    def slot_print_message(self):
+    # 打印消息
+    def print_message(self):
         print("[Python] 槽函数：按钮被点击")
 
-    # 槽函数2：计数器更新
-    def slot_update_counter(self):
+    # 计数器更新
+    def update_counter(self):
         self._counter += 1
         print(f"[Python] 槽函数：按钮点击次数 = {self._counter}")
 
@@ -32,7 +27,7 @@ class Backend(QObject):
     @Slot()
     def enablePrintLog(self):
         try:
-            self.buttonClicked.connect(self.slot_print_message)
+            self.buttonClicked.connect(self.print_message)
             print("[Python] 已启用打印槽")
         except TypeError:
             # 如果重复连接，会抛 TypeError
@@ -42,7 +37,7 @@ class Backend(QObject):
     @Slot()
     def disablePrintLog(self):
         try:
-            self.buttonClicked.disconnect(self.slot_print_message)
+            self.buttonClicked.disconnect(self.print_message)
             print("[Python] 已关闭打印槽")
         except TypeError:
             # 如果槽没有连接，disconnect 会抛异常
