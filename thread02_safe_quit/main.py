@@ -12,7 +12,6 @@ class Worker(QObject):
         super().__init__()
         self._is_running = True
 
-    @Slot()
     def run(self):
         self._is_running = True
         for i in range(1, 11):  # 模拟10步任务

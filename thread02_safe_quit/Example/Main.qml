@@ -8,7 +8,7 @@ Window {
     width: 350
     height: 280
     visible: true
-    title: "QThread 生命周期与安全退出 - 改进版"
+    title: "QThread 生命周期与安全退出"
 
     // 使用Column布局垂直排列UI元素
     Column {
