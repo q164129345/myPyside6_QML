@@ -38,6 +38,19 @@ class Backend(QObject):
         self.worker = None
         self.is_task_running = False  # 添加任务运行状态标志
 
+    def cleanup(self):
+        # 1. 先停止线程的事件循环
+        self.thread.quit()
+        # 2. 等待线程完全退出
+        self.thread.wait()
+        # 3. 使用deleteLater()延迟删除对象(更安全)
+        self.worker.deleteLater()
+        self.thread.deleteLater()
+        print("[Backend] 已安排延迟清理 worker 和 thread")
+
+        self.thread = None
+        self.worker = None
+
     @Slot()
     def startTask(self):
         # 检查是否已有任务在运行
@@ -63,9 +76,6 @@ class Backend(QObject):
 
         # 生命周期管理
         self.worker.finished.connect(self._on_task_finished)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
 
         self.thread.start()
         print("[Backend] 子线程已启动")
@@ -77,20 +87,12 @@ class Backend(QObject):
             print("[Backend] 停止任务请求已发出")
         else:
             print("[Backend] 没有运行中的任务可停止")
-
+    @Slot()
     def _on_task_finished(self, message):
         """任务完成后的清理工作"""
         print(f"[Backend] 任务完成: {message}")
         self.is_task_running = False
-        # 使用QTimer延迟清理引用，确保deleteLater完成
-        QTimer.singleShot(100, self._reset_references)
-    
-    def _reset_references(self):
-        """重置线程和工作对象的引用"""
-        print("[Backend] 清理线程引用")
-        self.thread = None
-        self.worker = None
-
+        self.cleanup() # 清理线程和worker
 
 if __name__ == "__main__":
     # 创建应用程序和引擎
