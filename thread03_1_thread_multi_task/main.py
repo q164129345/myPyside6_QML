@@ -34,19 +34,14 @@ class Backend(QObject):
 
         # 将 worker 移动到子线程
         self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.onThreadStarted)
 
         # 信号连接：任务派发与结果返回
         self.taskSignal.connect(self.worker.doWork)
         self.worker.finished.connect(self.onTaskFinished)
 
-        # 启动线程并保持事件循环
+        # 启动线程 - 线程会自动运行事件循环
         self.thread.start()
-
-    def onThreadStarted(self):
-        print(f"[Backend] 线程启动成功，线程ID={self.thread.currentThreadId()}")
-        # 保持事件循环运行
-        self.thread.exec()  # 🟢 关键点：让线程持续工作
+        print(f"[Backend] 线程启动成功")
 
     @Slot(str)
     def sendTask(self, task_name: str):
@@ -59,10 +54,18 @@ class Backend(QObject):
         """任务完成后，主线程打印结果"""
         print(f"[Backend] 收到结果：{result}")
 
-    def __del__(self):
+    def cleanup(self):
         """线程安全退出"""
+        print("[Backend] 开始清理资源...")
+        # 1. 先停止线程的事件循环
         self.thread.quit()
+        # 2. 等待线程完全退出
         self.thread.wait()
+        print("[Backend] 线程已安全退出")
+        # 3. 使用 deleteLater() 延迟删除对象(更安全)
+        self.worker.deleteLater()
+        self.thread.deleteLater()
+        print("[Backend] 已安排延迟清理 worker 和 thread")
 
 
 if __name__ == "__main__":
@@ -76,4 +79,12 @@ if __name__ == "__main__":
 
     if not engine.rootObjects():
         sys.exit(-1)
-    sys.exit(app.exec())
+    
+    # 启动应用事件循环
+    ret = app.exec()
+    
+    # 在应用退出后手动清理
+    # 注意: deleteLater() 需要事件循环,所以在 app.exec() 之后调用
+    backend.cleanup()
+    
+    sys.exit(ret)
