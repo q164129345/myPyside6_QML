@@ -19,7 +19,7 @@ class Worker(QObject):
     def handleTask(self, task_name: str):
         """在子线程中执行任务"""
         print(f"[Worker] 收到任务: {task_name}, 线程ID={threading.get_ident()}")
-        time.sleep(2)  # 模拟耗时任务
+        time.sleep(5)  # 模拟耗时任务
         result = f"任务 {task_name} 完成"
         self.finished.emit(result)
 
