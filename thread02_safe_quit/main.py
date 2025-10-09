@@ -1,6 +1,6 @@
 # python3.10.11 - PySide6==6.9
 import sys, time
-from PySide6.QtCore import QObject, Signal, Slot, QThread, QTimer
+from PySide6.QtCore import QObject, Signal, Slot, QThread
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
