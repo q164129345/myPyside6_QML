@@ -39,6 +39,9 @@ class Backend(QObject):
         self.is_task_running = False  # 添加任务运行状态标志
 
     def cleanup(self):
+        if not self.thread:
+            return  # 没有线程，无需清理
+        
         # 1. 先停止线程的事件循环
         self.thread.quit()
         # 2. 等待线程完全退出
