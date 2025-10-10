@@ -41,13 +41,14 @@ class Backend(QObject):
         self.workers = []
 
     # --- QML 可绑定属性 ---
-    def get_aCount(self): return self._aCount
-    def get_bCount(self): return self._bCount
-    def get_cCount(self): return self._cCount
+    @Property(int, notify=aCountChanged)
+    def aCount(self): return self._aCount
 
-    aCount = Property(int, get_aCount, notify=aCountChanged)
-    bCount = Property(int, get_bCount, notify=bCountChanged)
-    cCount = Property(int, get_cCount, notify=cCountChanged)
+    @Property(int, notify=bCountChanged)
+    def bCount(self): return self._bCount
+    
+    @Property(int, notify=cCountChanged)
+    def cCount(self): return self._cCount
 
     # --- 启动所有任务 ---
     @Slot()
