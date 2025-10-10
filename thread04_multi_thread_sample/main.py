@@ -85,7 +85,8 @@ class Backend(QObject):
         
         # 2. 等待所有线程结束
         for worker in self.workers:
-            worker.quit()  # 退出线程事件循环
+            # worker重写了run()，所以并没有调用exec()启动事件循环，所以不必调用quit()
+            # worker.quit()  # 退出线程事件循环
             if not worker.wait(2000):  # 最多等待2秒
                 print(f"警告: 线程 {worker.name} 未能在2秒内结束")
         
