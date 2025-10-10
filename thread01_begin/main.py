@@ -7,6 +7,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 class Worker(QObject):
     finished = Signal(str) # 定义线程结束信号，传递字符串参数
 
+    @Slot()
     def run(self):
         for i in range(5):
             print(f"[Python] 线程运行中... {i+1}/5")
