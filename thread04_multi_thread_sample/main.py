@@ -25,6 +25,7 @@ class Worker(QThread):
     def stop(self):
         """停止线程"""
         self._running = False
+        self.wait()  # 等待线程结束
 
 
 # ========== Backend 类（统一管理多个 Worker + 提供属性给 QML） ==========
@@ -46,7 +47,7 @@ class Backend(QObject):
 
     @Property(int, notify=bCountChanged)
     def bCount(self): return self._bCount
-    
+
     @Property(int, notify=cCountChanged)
     def cCount(self): return self._cCount
 
@@ -80,18 +81,11 @@ class Backend(QObject):
 
     def clean_up(self):
         """清理所有线程(程序退出时调用)"""
-        # 1. 停止所有 worker 线程
+        # 1. 停止所有 worker 线程 , 并等待它们结束
         for worker in self.workers:
             worker.stop()  # 设置标志位让 run() 循环退出
-        
-        # 2. 等待所有线程结束
-        for worker in self.workers:
-            # worker重写了run()，所以并没有调用exec()启动事件循环，所以不必调用quit()
-            # worker.quit()  # 退出线程事件循环
-            if not worker.wait(2000):  # 最多等待2秒
-                print(f"警告: 线程 {worker.name} 未能在2秒内结束")
-        
-        # 3. 安全删除对象
+                
+        # 2. 安全删除对象
         for worker in self.workers:
             worker.deleteLater()
 
