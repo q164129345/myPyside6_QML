@@ -16,7 +16,7 @@ class Worker(QThread):
         self._running = True
 
     def run(self):
-        """线程的主循环"""
+        """线程的主循环，当_running 为 False 时退出"""
         while self._running:
             self.count += 1
             self.countChanged.emit(self.name, self.count)
