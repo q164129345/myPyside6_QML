@@ -55,14 +55,20 @@ class Backend(QObject):
         print(f"[Backend] 收到结果：{result}")
 
     def cleanup(self):
-        """线程安全退出"""
+        """线程安全退出 - 在 aboutToQuit 信号中调用"""
         print("[Backend] 开始清理资源...")
-        # 1. 先停止线程的事件循环
+        
+        # 1. 退出线程的事件循环
         self.thread.quit()
+        
         # 2. 等待线程完全退出
-        self.thread.wait()
-        print("[Backend] 线程已安全退出")
-        # 3. 使用 deleteLater() 延迟删除对象(更安全)
+        if not self.thread.wait(3000):  # 最多等待3秒
+            print("[Backend] 警告: 线程未能在3秒内结束")
+        else:
+            print("[Backend] 线程已安全退出")
+        
+        # 3. 使用 deleteLater() 延迟删除对象
+        # 在 aboutToQuit 中调用时,还有短暂的事件循环可以处理
         self.worker.deleteLater()
         self.thread.deleteLater()
         print("[Backend] 已安排延迟清理 worker 和 thread")
@@ -74,17 +80,16 @@ if __name__ == "__main__":
 
     backend = Backend()
     engine.rootContext().setContextProperty("backend", backend)
+    
+    # ✅ 使用 aboutToQuit 信号来清理资源(推荐方式)
+    # 在事件循环结束前自动触发,deleteLater() 仍然有效
+    app.aboutToQuit.connect(backend.cleanup)
+    
     engine.addImportPath(sys.path[0])
     engine.loadFromModule("Example", "Main")
 
     if not engine.rootObjects():
         sys.exit(-1)
     
-    # 启动应用事件循环
-    ret = app.exec()
-    
-    # 在应用退出后手动清理
-    # 注意: deleteLater() 需要事件循环,所以在 app.exec() 之后调用
-    backend.cleanup()
-    
-    sys.exit(ret)
+    # 直接退出,清理已在 aboutToQuit 中完成
+    sys.exit(app.exec())
