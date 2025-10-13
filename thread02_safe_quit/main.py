@@ -97,6 +97,13 @@ class Backend(QObject):
         self.is_task_running = False
         self.cleanup() # 清理线程和worker
 
+    def clean_up_on_exit(self):
+        """应用退出时的清理工作（处理用户中途退出的情况）"""
+        if self.is_task_running:
+            print("[Backend] 应用即将退出，停止运行中的任务")
+            self.worker.stop()  # 停止任务
+        self.cleanup()  # 清理线程资源
+
 if __name__ == "__main__":
     # 创建应用程序和引擎
     app = QGuiApplication(sys.argv)
@@ -104,7 +111,10 @@ if __name__ == "__main__":
 
     # qml与python交互
     backend = Backend() # 实例化python后端对象
-    engine.rootContext().setContextProperty("backend", backend) # 注册到QML环境（名叫 “backend”）
+    engine.rootContext().setContextProperty("backend", backend) # 注册到QML环境（名叫 "backend"）
+    
+    # 连接应用程序退出信号，确保线程安全退出
+    app.aboutToQuit.connect(backend.clean_up_on_exit)
 
     # 加载QML文件
     engine.addImportPath(sys.path[0])  # 当前项目路径
