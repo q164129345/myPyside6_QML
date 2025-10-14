@@ -32,15 +32,15 @@ class SerialBackend(QObject):
         # 获取所有可用串口信息
         available_ports = QSerialPortInfo.availablePorts()
         
-        # 清空之前的列表
-        self._ports_list = []
-        
         if not available_ports:
             print("[SerialBackend] 未检测到可用串口")
             self.statusChanged.emit("未检测到可用串口")
             self.portsListChanged.emit([])
             return
         
+        # 清空之前的列表
+        self._ports_list = []
+
         # 遍历每个串口，提取详细信息
         for port in available_ports:
             port_name = port.portName()
@@ -65,16 +65,6 @@ class SerialBackend(QObject):
         self.portsListChanged.emit(self._ports_list)
         print(f"[SerialBackend] 扫描完成，共找到 {len(self._ports_list)} 个串口")
     
-    @Slot(str)
-    def showPortDetails(self, port_name):
-        """显示指定串口的详细信息（调试用）"""
-        print(f"[SerialBackend] 查看串口详情: {port_name}")
-        for port in self._ports_list:
-            if port["portName"] == port_name:
-                print(f"  端口名称: {port['portName']}")
-                print(f"  描述: {port['description']}")
-                break
-
 
 if __name__ == "__main__":
     # 创建应用程序和引擎

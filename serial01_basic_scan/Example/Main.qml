@@ -92,21 +92,9 @@ Window {
             delegate: Rectangle {
                 width: portListView.width
                 height: 80
-                color: mouseArea.containsMouse ? "#F5F5F5" : "#FFFFFF"
                 border.color: "#BDBDBD"
                 border.width: 1
                 radius: 8
-                
-                // 鼠标悬停效果
-                MouseArea {
-                    id: mouseArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: {
-                        // 点击显示详细信息到控制台
-                        backend.showPortDetails(model.portName)
-                    }
-                }
                 
                 RowLayout {
                     anchors.fill: parent
