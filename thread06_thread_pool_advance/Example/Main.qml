@@ -5,14 +5,14 @@ Window {
     width: 400
     height: 300
     visible: true
-    title: "thread06 - QtConcurrent极简版"
+    title: "thread06 - QtRunnable优化版本"
 
     Column {
         anchors.centerIn: parent
         spacing: 20
 
         Text {
-            text: "QtConcurrent 极简示例"
+            text: "QtRunnable优化、实用的版本"
             font.pointSize: 16
             font.bold: true
             anchors.horizontalCenter: parent.horizontalCenter

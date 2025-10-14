@@ -1,16 +1,18 @@
 # python3.10.11 - PySide6==6.9
 """
-thread06 - QtConcurrent 极简版
+thread06 - 简化版线程池（QtConcurrent思想）
 核心概念：
-1. QtConcurrent.run() - 在线程池中异步执行函数
-2. 使用回调函数接收结果（比thread05的WorkerSignals更简洁）
-3. 无需手动创建QRunnable类，代码更优雅
+1. 使用 QRunnable + lambda 实现类似 QtConcurrent 的效果
+2. 比 thread05 更简洁：不需要为每个任务创建类
+3. 不需要 WorkerSignals 辅助类
+
+说明：PySide6 的 QtConcurrent.run() 功能有限（不像C++版本）
+所以我们用一个超简洁的方式模拟 QtConcurrent 的便利性
 
 对比thread05的优势：
-- 不需要为每个任务创建QRunnable类
-- 不需要WorkerSignals辅助类
-- 使用回调函数，代码更直观
-- 一个通用的Runnable包装器搞定一切
+- 不需要为每个任务创建 QRunnable 类
+- 不需要 WorkerSignals 类
+- 使用 lambda 直接提交，代码极简
 """
 import sys
 import time
@@ -19,22 +21,22 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 
-# ===== 第1步：通用任务包装器（只需定义一次）=====
-class TaskRunnable(QRunnable):
-    """通用任务包装器 - QtConcurrent的核心优势"""
-    def __init__(self, func, callback):
+# ===== 第1步：极简的Runnable包装器 =====
+class SimpleRunnable(QRunnable):
+    """
+    极简包装器 - 让提交任务像 QtConcurrent 一样简单
+    使用方式：SimpleRunnable(lambda: your_function(args))
+    """
+    def __init__(self, func):
         super().__init__()
         self.func = func
-        self.callback = callback
         self.setAutoDelete(True)
     
     def run(self):
-        """执行任务并通过回调返回结果"""
-        result = self.func()
-        self.callback(result)
+        self.func()
 
 
-# ===== 第2步：后端类（使用QtConcurrent风格）=====
+# ===== 第2步：后端类 =====
 class Backend(QObject):
     resultReady = Signal(str)  # 结果信号
     
@@ -49,18 +51,14 @@ class Backend(QObject):
     
     @Slot()
     def startTasks(self):
-        """启动5个任务"""
+        """启动5个任务 - 像 QtConcurrent 一样简洁"""
         print("[Backend] 开始提交5个任务...")
         
-        # 创建5个任务并提交到线程池
+        # 🌟 关键：使用 lambda 直接提交，无需创建任务类
         for i in range(1, 6):
-            # 定义任务函数（使用lambda捕获变量）
-            task_func = lambda tid=i: self._do_work(tid)
-            
-            # 创建Runnable并提交
-            runnable = TaskRunnable(task_func, self._on_finished)
-            self.pool.start(runnable)
-            
+            self.pool.start(SimpleRunnable(
+                lambda tid=i: self._do_work(tid)  # 注意：tid=i 捕获变量
+            ))
             print(f"[Backend] 提交任务 {i}")
         
         self.resultReady.emit("已提交5个任务，观察控制台输出")
@@ -72,12 +70,10 @@ class Backend(QObject):
         # 模拟耗时操作（3秒）
         time.sleep(3)
         
+        result = f"任务 {task_id} 完成！"
         print(f"[Task {task_id}] 完成")
-        return f"任务 {task_id} 完成！"
-    
-    def _on_finished(self, result):
-        """任务完成回调（在工作线程中执行，通过信号传递到主线程）"""
-        print(f"[Backend] 收到结果: {result}")
+        
+        # 通过信号发送结果到主线程
         self.resultReady.emit(result)
 
 
