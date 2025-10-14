@@ -7,7 +7,7 @@ import QtQuick.Layouts
 
 // 定义主窗口
 Window {
-    width: 800
+    width: 700
     height: 600
     visible: true
     title: "serial02 - 串口打开与关闭"

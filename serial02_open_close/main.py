@@ -7,15 +7,10 @@ serial02_open_close - 串口打开与关闭
 3. 连接状态管理与反馈
 """
 import sys
-import io
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
-
-# 设置标准输出编码为UTF-8，解决Windows控制台中文乱码问题
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
 
 class SerialBackend(QObject):
     """串口后端类 - 负责串口扫描、打开、关闭管理"""
