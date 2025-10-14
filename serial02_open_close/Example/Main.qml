@@ -7,8 +7,8 @@ import QtQuick.Layouts
 
 // 定义主窗口
 Window {
-    width: 500
-    height: 450
+    width: 800
+    height: 600
     visible: true
     title: "serial02 - 串口打开与关闭"
     
@@ -75,7 +75,7 @@ Window {
                     ComboBox {
                         id: baudRateComboBox
                         Layout.fillWidth: true
-                        model: ["9600", "19200", "38400", "57600", "115200"]
+                        model: ["9600", "19200", "38400", "57600", "115200", "256000", "460800"]
                         currentIndex: 0
                         enabled: !isConnected
                     }
