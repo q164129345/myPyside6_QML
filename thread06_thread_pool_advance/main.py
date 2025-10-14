@@ -76,6 +76,11 @@ class Backend(QObject):
         # 通过信号发送结果到主线程
         self.resultReady.emit(result)
 
+    def clean_up(self):
+        """清理线程池(程序退出时调用)"""
+        print("[Backend] 等待所有任务完成...")
+        self.pool.waitForDone(1000)  # 等待所有任务完成
+        print("[Backend] 所有任务已完成")
 
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
@@ -83,6 +88,9 @@ if __name__ == "__main__":
 
     backend = Backend()
     engine.rootContext().setContextProperty("backend", backend)
+
+    # 清理线程池(程序退出时调用)
+    app.aboutToQuit.connect(backend.clean_up)
 
     engine.addImportPath(sys.path[0])
     engine.loadFromModule("Example", "Main")
