@@ -155,6 +155,9 @@ if __name__ == "__main__":
     # 注册到QML环境
     engine.rootContext().setContextProperty("backend", backend)
 
+    # 应用程序退出前自动关闭串口（重要！防止资源泄漏）
+    app.aboutToQuit.connect(backend.closePort)
+    
     # 加载QML文件
     engine.addImportPath(sys.path[0])  # 当前项目路径
     engine.loadFromModule("Example", "Main")  # 模块(Example) + QML文件名(Main.qml)

@@ -17,6 +17,13 @@ Window {
         backend.scanPorts()
     }
     
+    // 窗口关闭时断开串口
+    onClosing: {
+        if (isConnected) {
+            backend.closePort()
+        }
+    }
+
     // 主布局容器
     ColumnLayout {
         anchors.fill: parent
@@ -240,10 +247,4 @@ Window {
         }
     }
     
-    // 窗口关闭时断开串口
-    onClosing: {
-        if (isConnected) {
-            backend.closePort()
-        }
-    }
 }
