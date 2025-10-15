@@ -15,10 +15,12 @@ class Backend(QObject):
         self.buttonClicked.connect(self.update_counter)
 
     # 打印消息
+    @Slot()
     def print_message(self):
         print("[Python] 槽函数：按钮被点击")
 
     # 计数器更新
+    @Slot()
     def update_counter(self):
         self._counter += 1
         print(f"[Python] 槽函数：按钮点击次数 = {self._counter}")

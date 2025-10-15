@@ -15,6 +15,7 @@ class Backend(QObject):
         self.signalB.connect(self.slot_handle_event)
 
     # 统一的函数，接收 (来源, 次数) 参数
+    @Slot(str, int)
     def slot_handle_event(self, source: str, count: int):
         print(f"[Python] 槽函数：收到来自信号 {source} 的事件，第 {count} 次点击")
 

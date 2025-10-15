@@ -16,6 +16,7 @@ class Backend(QObject):
         self.signalB.connect(self.slot_handle_event)
 
     # 统一的槽函数
+    @Slot()
     def slot_handle_event(self):
         print("[Python] 槽函数：收到一个信号事件")
 
