@@ -7,11 +7,23 @@ import QtQuick.Layouts
 
 // 定义主窗口
 Window {
+    // ===== 窗口基本属性 =====
     width: 700
     height: 600
     visible: true
     title: "serial02 - 串口打开与关闭"
     
+    // ===== 自定义属性 =====
+    property bool isConnected: false
+    property var portListModel: []
+    
+    // ===== 自定义函数 =====
+    function addInfoLog(message) {
+        var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss")
+        infoTextArea.text += "\n[" + timestamp + "] " + message
+    }
+    
+    // ===== 生命周期处理 =====
     // 窗口加载完成后自动扫描串口
     Component.onCompleted: {
         backend.scanPorts()
@@ -24,6 +36,7 @@ Window {
         }
     }
 
+    // ===== UI 布局 =====
     // 主布局容器
     ColumnLayout {
         anchors.fill: parent
@@ -207,16 +220,7 @@ Window {
         }
     }
     
-    // ===== 属性与函数 =====
-    property bool isConnected: false
-    property var portListModel: []
-    
-    function addInfoLog(message) {
-        var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss")
-        infoTextArea.text += "\n[" + timestamp + "] " + message
-    }
-    
-    // ===== 信号连接 =====
+    // ===== 后端信号连接 =====
     Connections {
         target: backend
         
