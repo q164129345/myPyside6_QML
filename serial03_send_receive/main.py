@@ -128,6 +128,44 @@ class SerialBackend(QObject):
         print(f"[SerialBackend] {close_msg}", flush=True)
         self.connectionStatusChanged.emit(False, close_msg)
     
+    def _check_connection_and_data(self, data):
+        """检查串口连接和数据有效性（通用方法）
+        
+        Returns:
+            bool: 检查通过返回True，否则返回False
+        """
+        if not self._is_connected:
+            error_msg = "串口未连接，无法发送数据"
+            print(f"[SerialBackend] {error_msg}", flush=True)
+            self.errorOccurred.emit(error_msg)
+            return False
+        
+        if not data:
+            print("[SerialBackend] 发送数据为空，已忽略", flush=True)
+            return False
+        
+        return True
+    
+    def _write_to_port(self, byte_data, ascii_str, hex_formatted):
+        """写入数据到串口（通用方法）
+        
+        Args:
+            byte_data: QByteArray格式的数据
+            ascii_str: ASCII格式显示字符串
+            hex_formatted: HEX格式显示字符串
+        """
+        bytes_written = self._serial_port.write(byte_data)
+        
+        if bytes_written == -1:
+            error_msg = "数据发送失败"
+            print(f"[SerialBackend] {error_msg}", flush=True)
+            self.errorOccurred.emit(error_msg)
+        else:
+            # 刷新缓冲区，确保数据立即发送
+            self._serial_port.flush()
+            print(f"[SerialBackend] 发送数据: ASCII='{ascii_str}' | HEX=[{hex_formatted}] | 字节数:{bytes_written}", flush=True)
+            self.dataSent.emit(ascii_str, hex_formatted)
+    
     @Slot(str)
     def sendData(self, data):
         """发送数据到串口
@@ -135,39 +173,19 @@ class SerialBackend(QObject):
         Args:
             data: 要发送的字符串数据
         """
-        if not self._is_connected:
-            error_msg = "串口未连接，无法发送数据"
-            print(f"[SerialBackend] {error_msg}", flush=True)
-            self.errorOccurred.emit(error_msg)
-            return
-        
-        if not data:
-            print("[SerialBackend] 发送数据为空，已忽略", flush=True)
+        if not self._check_connection_and_data(data):
             return
         
         try:
             # 将字符串转换为字节数组
             byte_data = QByteArray(data.encode('utf-8'))
             
-            # 写入串口
-            bytes_written = self._serial_port.write(byte_data)
+            # 转换为HEX格式
+            hex_str = byte_data.toHex().data().decode('ascii')
+            hex_formatted = ' '.join([hex_str[i:i+2] for i in range(0, len(hex_str), 2)]).upper()
             
-            if bytes_written == -1:
-                error_msg = "数据发送失败"
-                print(f"[SerialBackend] {error_msg}", flush=True)
-                self.errorOccurred.emit(error_msg)
-            else:
-                # 刷新缓冲区，确保数据立即发送
-                self._serial_port.flush()
-                
-                # 转换为HEX格式
-                hex_str = byte_data.toHex().data().decode('ascii')
-                hex_formatted = ' '.join([hex_str[i:i+2] for i in range(0, len(hex_str), 2)]).upper()
-                
-                print(f"[SerialBackend] 发送数据: ASCII='{data}' | HEX=[{hex_formatted}] | 字节数:{bytes_written}", flush=True)
-                
-                # 发射信号通知QML
-                self.dataSent.emit(data, hex_formatted)
+            # 写入串口
+            self._write_to_port(byte_data, data, hex_formatted)
         
         except Exception as e:
             error_msg = f"发送数据异常: {str(e)}"
@@ -181,14 +199,7 @@ class SerialBackend(QObject):
         Args:
             hex_string: 十六进制字符串，如 "01 02 03 FF"
         """
-        if not self._is_connected:
-            error_msg = "串口未连接，无法发送数据"
-            print(f"[SerialBackend] {error_msg}", flush=True)
-            self.errorOccurred.emit(error_msg)
-            return
-        
-        if not hex_string:
-            print("[SerialBackend] 发送数据为空，已忽略", flush=True)
+        if not self._check_connection_and_data(hex_string):
             return
         
         try:
@@ -210,27 +221,14 @@ class SerialBackend(QObject):
             # 将HEX字符串转换为字节数组
             byte_data = QByteArray.fromHex(hex_clean.encode('ascii'))
             
-            # 写入串口
-            bytes_written = self._serial_port.write(byte_data)
+            # 格式化HEX显示
+            hex_formatted = ' '.join([hex_clean[i:i+2] for i in range(0, len(hex_clean), 2)]).upper()
             
-            if bytes_written == -1:
-                error_msg = "数据发送失败"
-                print(f"[SerialBackend] {error_msg}", flush=True)
-                self.errorOccurred.emit(error_msg)
-            else:
-                # 刷新缓冲区
-                self._serial_port.flush()
-                
-                # 格式化HEX显示
-                hex_formatted = ' '.join([hex_clean[i:i+2] for i in range(0, len(hex_clean), 2)]).upper()
-                
-                # 尝试转换为ASCII显示（非可打印字符用'.'表示）
-                ascii_str = ''.join([chr(b) if 32 <= b < 127 else '.' for b in byte_data])
-                
-                print(f"[SerialBackend] 发送HEX: [{hex_formatted}] | ASCII='{ascii_str}' | 字节数:{bytes_written}", flush=True)
-                
-                # 发射信号通知QML
-                self.dataSent.emit(ascii_str, hex_formatted)
+            # 尝试转换为ASCII显示（非可打印字符用'.'表示）
+            ascii_str = ''.join([chr(b) if 32 <= b < 127 else '.' for b in byte_data])
+            
+            # 写入串口
+            self._write_to_port(byte_data, ascii_str, hex_formatted)
         
         except Exception as e:
             error_msg = f"发送HEX数据异常: {str(e)}"

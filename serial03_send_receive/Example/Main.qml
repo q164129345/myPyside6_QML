@@ -19,35 +19,38 @@ Window {
     property bool showHexFormat: false  // 切换显示格式（false=ASCII, true=HEX）
     
     // ===== 自定义函数 =====
-    function addInfoLog(message) {
-        var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
-        infoTextArea.text += "[" + timestamp + "] " + message + "\n"
-        // 自动滚动到底部
+    // 通用：获取时间戳
+    function getTimestamp() {
+        return Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
+    }
+    
+    // 通用：滚动到底部
+    function scrollToBottom(scrollView) {
         Qt.callLater(function() {
-            if (infoScrollView.ScrollBar.vertical) {
-                infoScrollView.ScrollBar.vertical.position = 1.0 - infoScrollView.ScrollBar.vertical.size
+            if (scrollView.ScrollBar.vertical) {
+                scrollView.ScrollBar.vertical.position = 1.0 - scrollView.ScrollBar.vertical.size
             }
         })
     }
     
-    function addSendLog(asciiData, hexData) {
-        var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
-        var displayData = showHexFormat ? hexData : asciiData
-        sendTextArea.text += "[" + timestamp + "] 📤 " + displayData + "\n"
-        // 强制滚动到底部
-        Qt.callLater(function() {
-            sendScrollView.ScrollBar.vertical.position = 1.0 - sendScrollView.ScrollBar.vertical.size
-        })
+    // 添加信息日志
+    function addInfoLog(message) {
+        infoTextArea.text += "[" + getTimestamp() + "] " + message + "\n"
+        scrollToBottom(infoScrollView)
     }
     
-    function addReceiveLog(asciiData, hexData) {
-        var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
+    // 添加发送日志
+    function addSendLog(asciiData, hexData) {
         var displayData = showHexFormat ? hexData : asciiData
-        receiveTextArea.text += "[" + timestamp + "] 📥 " + displayData + "\n"
-        // 强制滚动到底部
-        Qt.callLater(function() {
-            receiveScrollView.ScrollBar.vertical.position = 1.0 - receiveScrollView.ScrollBar.vertical.size
-        })
+        sendTextArea.text += "[" + getTimestamp() + "] 📤 " + displayData + "\n"
+        scrollToBottom(sendScrollView)
+    }
+    
+    // 添加接收日志
+    function addReceiveLog(asciiData, hexData) {
+        var displayData = showHexFormat ? hexData : asciiData
+        receiveTextArea.text += "[" + getTimestamp() + "] 📥 " + displayData + "\n"
+        scrollToBottom(receiveScrollView)
     }
     
     // ===== 生命周期处理 =====
