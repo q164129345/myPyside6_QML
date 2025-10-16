@@ -10,6 +10,8 @@ Window {
     // ===== 窗口基本属性 =====
     width: 900
     height: 750
+    minimumWidth: 700
+    minimumHeight: 600
     visible: true
     title: "serial03 - 基础收发数据"
     
@@ -24,33 +26,24 @@ Window {
         return Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
     }
     
-    // 通用：滚动到底部
-    function scrollToBottom(scrollView) {
-        Qt.callLater(function() {
-            if (scrollView.ScrollBar.vertical) {
-                scrollView.ScrollBar.vertical.position = 1.0 - scrollView.ScrollBar.vertical.size
-            }
-        })
-    }
-    
     // 添加信息日志
     function addInfoLog(message) {
         infoTextArea.text += "[" + getTimestamp() + "] " + message + "\n"
-        scrollToBottom(infoScrollView)
+        infoTextArea.cursorPosition = infoTextArea.length
     }
     
     // 添加发送日志
     function addSendLog(asciiData, hexData) {
         var displayData = showHexFormat ? hexData : asciiData
         sendTextArea.text += "[" + getTimestamp() + "] 📤 " + displayData + "\n"
-        scrollToBottom(sendScrollView)
+        sendTextArea.cursorPosition = sendTextArea.length
     }
     
     // 添加接收日志
     function addReceiveLog(asciiData, hexData) {
         var displayData = showHexFormat ? hexData : asciiData
         receiveTextArea.text += "[" + getTimestamp() + "] 📥 " + displayData + "\n"
-        scrollToBottom(receiveScrollView)
+        receiveTextArea.cursorPosition = receiveTextArea.length
     }
     
     // ===== 生命周期处理 =====
@@ -269,8 +262,7 @@ Window {
         // ===== 数据显示区域（发送/接收）=====
         RowLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.minimumHeight: 200
+            Layout.preferredHeight: 300
             spacing: 15
             
             // 发送历史
@@ -300,7 +292,6 @@ Window {
                             font.pixelSize: 11
                             font.family: "Consolas"
                             text: "等待发送数据...\n"
-                            width: sendScrollView.width
                         }
                     }
                     
@@ -343,7 +334,6 @@ Window {
                             font.pixelSize: 11
                             font.family: "Consolas"
                             text: "等待接收数据...\n"
-                            width: receiveScrollView.width
                         }
                     }
                     
@@ -443,7 +433,6 @@ Window {
                             font.pixelSize: 10
                             font.family: "Consolas"
                             text: "程序启动中，正在扫描串口...\n"
-                            width: infoScrollView.width
                         }
                     }
                 }
