@@ -138,11 +138,6 @@ class SerialBackend(QObject):
         
         self.errorOccurred.emit(error_msg)
     
-    @Slot(result=bool)
-    def isConnected(self):
-        """返回当前连接状态"""
-        return self._is_connected
-
 
 if __name__ == "__main__":
     # 创建应用程序和引擎
