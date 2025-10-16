@@ -35,14 +35,14 @@ Window {
     // 添加发送日志
     function addSendLog(asciiData, hexData) {
         var displayData = showHexFormat ? hexData : asciiData
-        sendTextArea.text += "[" + getTimestamp() + "] 📤 " + displayData + "\n"
+        sendTextArea.text += "[" + getTimestamp() + "] -> " + displayData + "\n"
         sendTextArea.cursorPosition = sendTextArea.length
     }
     
     // 添加接收日志
     function addReceiveLog(asciiData, hexData) {
         var displayData = showHexFormat ? hexData : asciiData
-        receiveTextArea.text += "[" + getTimestamp() + "] 📥 " + displayData + "\n"
+        receiveTextArea.text += "[" + getTimestamp() + "] <- " + displayData + "\n"
         receiveTextArea.cursorPosition = receiveTextArea.length
     }
     
