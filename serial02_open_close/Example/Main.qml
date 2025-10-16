@@ -200,7 +200,7 @@ Window {
         
         // ===== 信息显示区域 =====
         GroupBox {
-            title: "连接信息"
+            title: "日志log"
             Layout.fillWidth: true
             Layout.fillHeight: true
             
