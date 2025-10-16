@@ -23,21 +23,31 @@ Window {
         var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
         infoTextArea.text += "[" + timestamp + "] " + message + "\n"
         // 自动滚动到底部
-        infoTextArea.cursorPosition = infoTextArea.length
+        Qt.callLater(function() {
+            if (infoScrollView.ScrollBar.vertical) {
+                infoScrollView.ScrollBar.vertical.position = 1.0 - infoScrollView.ScrollBar.vertical.size
+            }
+        })
     }
     
     function addSendLog(asciiData, hexData) {
         var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
         var displayData = showHexFormat ? hexData : asciiData
-        sendTextArea.text += "[" + timestamp + "] ->发送: " + displayData + "\n"
-        sendTextArea.cursorPosition = sendTextArea.length
+        sendTextArea.text += "[" + timestamp + "] 📤 " + displayData + "\n"
+        // 强制滚动到底部
+        Qt.callLater(function() {
+            sendScrollView.ScrollBar.vertical.position = 1.0 - sendScrollView.ScrollBar.vertical.size
+        })
     }
     
     function addReceiveLog(asciiData, hexData) {
         var timestamp = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
         var displayData = showHexFormat ? hexData : asciiData
-        receiveTextArea.text += "[" + timestamp + "] <-接收: " + displayData + "\n"
-        receiveTextArea.cursorPosition = receiveTextArea.length
+        receiveTextArea.text += "[" + timestamp + "] 📥 " + displayData + "\n"
+        // 强制滚动到底部
+        Qt.callLater(function() {
+            receiveScrollView.ScrollBar.vertical.position = 1.0 - receiveScrollView.ScrollBar.vertical.size
+        })
     }
     
     // ===== 生命周期处理 =====
@@ -246,8 +256,8 @@ Window {
                         } else {
                             backend.sendData(sendTextField.text)
                         }
-                        // 发送后清空输入框
-                        sendTextField.text = ""
+                        // 发送后保留输入框内容，方便重复发送
+                        // sendTextField.text = ""  // 注释掉自动清空
                     }
                 }
             }
@@ -265,15 +275,20 @@ Window {
                 title: "发送历史"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.preferredWidth: 0  // 强制平分空间
                 
                 ColumnLayout {
                     anchors.fill: parent
+                    anchors.margins: 5
                     spacing: 5
                     
                     ScrollView {
+                        id: sendScrollView
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AlwaysOn
                         
                         TextArea {
                             id: sendTextArea
@@ -282,6 +297,7 @@ Window {
                             font.pixelSize: 11
                             font.family: "Consolas"
                             text: "等待发送数据...\n"
+                            width: sendScrollView.width
                         }
                     }
                     
@@ -289,6 +305,7 @@ Window {
                         text: "清空"
                         font.pixelSize: 11
                         Layout.alignment: Qt.AlignRight
+                        Layout.preferredHeight: 25
                         onClicked: {
                             sendTextArea.text = ""
                         }
@@ -301,15 +318,20 @@ Window {
                 title: "接收历史"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.preferredWidth: 0  // 强制平分空间
                 
                 ColumnLayout {
                     anchors.fill: parent
+                    anchors.margins: 5
                     spacing: 5
                     
                     ScrollView {
+                        id: receiveScrollView
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AlwaysOn
                         
                         TextArea {
                             id: receiveTextArea
@@ -318,6 +340,7 @@ Window {
                             font.pixelSize: 11
                             font.family: "Consolas"
                             text: "等待接收数据...\n"
+                            width: receiveScrollView.width
                         }
                     }
                     
@@ -325,6 +348,7 @@ Window {
                         text: "清空"
                         font.pixelSize: 11
                         Layout.alignment: Qt.AlignRight
+                        Layout.preferredHeight: 25
                         onClicked: {
                             receiveTextArea.text = ""
                         }
@@ -396,17 +420,28 @@ Window {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 
-                ScrollView {
+                ColumnLayout {
                     anchors.fill: parent
-                    clip: true
+                    anchors.margins: 5
+                    spacing: 0
                     
-                    TextArea {
-                        id: infoTextArea
-                        readOnly: true
-                        wrapMode: TextArea.Wrap
-                        font.pixelSize: 10
-                        font.family: "Consolas"
-                        text: "程序启动中，正在扫描串口...\n"
+                    ScrollView {
+                        id: infoScrollView
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AlwaysOn
+                        
+                        TextArea {
+                            id: infoTextArea
+                            readOnly: true
+                            wrapMode: TextArea.Wrap
+                            font.pixelSize: 10
+                            font.family: "Consolas"
+                            text: "程序启动中，正在扫描串口...\n"
+                            width: infoScrollView.width
+                        }
                     }
                 }
             }
