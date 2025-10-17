@@ -11,15 +11,15 @@ class SerialBackend(QObject):
     portsListChanged = Signal(list)
     connectionStatusChanged = Signal(bool, str)
     errorOccurred = Signal(str)
-    dataReceived = Signal(str, str)
-    dataSent = Signal(str, str)
+    dataReceived = Signal(str, str) # 两种数据格式ASCII, HEX
+    dataSent = Signal(str, str)     # 两种数据格式ASCII, HEX
     
     def __init__(self):
         super().__init__()
         self._serial_port = QSerialPort()
         self._is_connected = False
         self._serial_port.errorOccurred.connect(self._on_error)
-        self._serial_port.readyRead.connect(self._on_data_ready)
+        self._serial_port.readyRead.connect(self._on_data_ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready
     
     @Slot()
     def scanPorts(self):
@@ -40,16 +40,18 @@ class SerialBackend(QObject):
     @Slot(str, int)
     def openPort(self, port_name, baud_rate=9600):
         """打开串口"""
+
+        # 如果串口已经连接，先关闭它才能重新打开
         if self._is_connected:
             self.closePort()
         
         print(f"[SerialBackend] 打开: {port_name}, 波特率: {baud_rate}", flush=True)
-        self._serial_port.setPortName(port_name)
-        self._serial_port.setBaudRate(baud_rate)
-        self._serial_port.setDataBits(QSerialPort.Data8)
-        self._serial_port.setParity(QSerialPort.NoParity)
-        self._serial_port.setStopBits(QSerialPort.OneStop)
-        self._serial_port.setFlowControl(QSerialPort.NoFlowControl)
+        self._serial_port.setPortName(port_name)                    # 设置端口名（如 COM3）
+        self._serial_port.setBaudRate(baud_rate)                    # 设置波特率
+        self._serial_port.setDataBits(QSerialPort.Data8)            # 数据位8bit
+        self._serial_port.setParity(QSerialPort.NoParity)           # 无奇偶校验
+        self._serial_port.setStopBits(QSerialPort.OneStop)          # 1个停止位
+        self._serial_port.setFlowControl(QSerialPort.NoFlowControl) # 无流控
         
         if self._serial_port.open(QSerialPort.ReadWrite):
             self._is_connected = True
@@ -137,13 +139,17 @@ class SerialBackend(QObject):
         if not self._is_connected:
             return
         
-        byte_data = self._serial_port.readAll()
+        byte_data = self._serial_port.readAll() # 读取串口的所有可用数据
         if byte_data.isEmpty():
             return
         
+        # 将接收到的字节数据解码为UTF-8字符串，如果解码出错则用替换字符处理
         ascii_str = byte_data.data().decode('utf-8', errors='replace')
+        # 调用内部方法格式化字节数据为HEX字符串（大写，空格分隔）
         hex_formatted = self._format_hex(byte_data)
+        # 在控制台打印接收到的数据，包括ASCII表示和HEX表示
         print(f"[SerialBackend] 接收: {ascii_str} | {hex_formatted}", flush=True)
+        # 发出数据接收信号，传递ASCII字符串和HEX字符串给QML前端
         self.dataReceived.emit(ascii_str, hex_formatted)
     
     def _on_error(self, error):
