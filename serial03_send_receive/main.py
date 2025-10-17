@@ -116,6 +116,7 @@ class SerialBackend(QObject):
             # 1.先移除所有空格。2.移除所有换行符。3.去除字符串首尾的空白字符。
             hex_clean = hex_string.replace(" ", "").replace("\n", "").strip()
             
+            # 验证 HEX 字符串的合法性：检查是否只包含十六进制字符且长度为偶数。
             if not all(c in '0123456789ABCDEFabcdef' for c in hex_clean):
                 self.errorOccurred.emit("无效HEX格式")
                 return
@@ -123,9 +124,12 @@ class SerialBackend(QObject):
                 self.errorOccurred.emit("HEX长度必须为偶数")
                 return
             
+            # 将清洗后的 HEX 字符串转换为字节数组
             byte_data = QByteArray.fromHex(hex_clean.encode('ascii'))
+            # 格式化 HEX 字符串用于显示
             hex_formatted = ' '.join([hex_clean[i:i+2] for i in range(0, len(hex_clean), 2)]).upper()
-            ascii_str = ''.join([chr(b) if 32 <= b < 127 else '.' for b in byte_data])
+            # 生成 ASCII 可读字符串，非打印字符用 '.' 替代
+            ascii_str = ''.join([chr(b) if 32 <= b < 127 else '.' for b in byte_data.data()])
             
             if self._serial_port.write(byte_data) != -1:
                 self._serial_port.flush()

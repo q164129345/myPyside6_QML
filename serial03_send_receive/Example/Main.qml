@@ -360,6 +360,8 @@ Window {
                         text: checked ? "HEX" : "ASCII"
                         font.pixelSize: 11
                         Layout.alignment: Qt.AlignVCenter
+                        // 当发送格式改变时，同步更新显示格式
+                        onCheckedChanged: showHexFormat = checked
                     }
                     
                     Text { text: "显示格式："; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
