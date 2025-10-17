@@ -112,6 +112,8 @@ class SerialBackend(QObject):
             return
         
         try:
+            # 清洗用户输入的 HEX 字符串，去除所有无关字符，得到纯净的十六进制字符串。 
+            # 1.先移除所有空格。2.移除所有换行符。3.去除字符串首尾的空白字符。
             hex_clean = hex_string.replace(" ", "").replace("\n", "").strip()
             
             if not all(c in '0123456789ABCDEFabcdef' for c in hex_clean):
