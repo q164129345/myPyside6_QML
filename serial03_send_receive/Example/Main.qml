@@ -56,7 +56,6 @@ Window {
     }
     
     // === 生命周期信号处理 ===
-    
     // Component.onCompleted - 组件加载完成时触发
     // 启动时自动扫描可用串口
     Component.onCompleted: backend.scanPorts()
@@ -65,8 +64,7 @@ Window {
     // 如果串口已连接，先关闭串口再退出
     onClosing: if (isConnected) backend.closePort()
 
-    // === 主界面布局 ===
-    
+    // === 主界面布局 === 
     // ColumnLayout - 垂直列布局，子元素从上到下排列
     ColumnLayout {
         // anchors.fill - 填充满父元素（Window）
@@ -78,7 +76,7 @@ Window {
         
         // 标题文本
         Text {
-            text: "串口收发数据测试"
+            text: "串口收发数据测试，一个简单的串口助手"
             // font对象：使用花括号{}组合多个属性
             font { pixelSize: 22; bold: true }
             // Layout.alignment - 在布局中的对齐方式（水平居中）
@@ -86,7 +84,6 @@ Window {
         }
         
         // === 第一行：串口配置和连接控制 ===
-        
         // RowLayout - 水平行布局，子元素从左到右排列
         RowLayout {
             Layout.fillWidth: true        // 填满父布局的宽度
@@ -209,7 +206,6 @@ Window {
         }
         
         // === 第二行：数据发送区域 ===
-        
         GroupBox {
             title: "数据发送"
             Layout.fillWidth: true
@@ -246,7 +242,6 @@ Window {
         }
         
         // === 第三行：收发数据历史显示区域 ===
-        
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 300
@@ -334,7 +329,6 @@ Window {
         }
         
         // === 第四行：设置和系统日志 ===
-        
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 100
@@ -406,7 +400,6 @@ Window {
     }  // ColumnLayout 结束
     
     // === Python后端信号连接 ===
-    
     /**
      * Connections - 连接对象，用于接收Python后端发送的信号
      * target - 指定信号源对象（backend是Python中注册的QML对象）
