@@ -15,7 +15,7 @@ Rectangle {
         spacing: 20
         
         Text {
-            text: "🔥 Loader 热重载示例"
+            text: "Hot-reload热重载示例"
             font.pixelSize: 36
             font.bold: true
             color: "white"
