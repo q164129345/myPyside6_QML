@@ -20,11 +20,10 @@ class HotReloadController(QObject):
         super().__init__()
         self.qml_file = qml_file
         self._source_url = ""
-        self.last_mtime = qml_file.stat().st_mtime if qml_file.exists() else 0
         
-        # 文件监听 + 轮询双保险
+        # 文件监听
         self.watcher = QFileSystemWatcher([str(qml_file), str(qml_file.parent)])
-        self.watcher.fileChanged.connect(lambda: self._schedule_reload("监听"))
+        self.watcher.fileChanged.connect(self._schedule_reload)
         self.watcher.directoryChanged.connect(self._on_dir_change)
         
         # 防抖定时器
@@ -33,42 +32,18 @@ class HotReloadController(QObject):
         self.reload_timer.setInterval(300)
         self.reload_timer.timeout.connect(self._do_reload)
         
-        # 轮询定时器(备用)
-        self.poll_timer = QTimer()
-        self.poll_timer.setInterval(500)
-        self.poll_timer.timeout.connect(self._check_modified)
-        self.poll_timer.start()
-        
         print(f"🔥 QML 热重载已启用\n📁 监听: {qml_file.name}\n")
-    
-    @Slot()
-    def _check_modified(self):
-        """轮询检查文件修改(备用方案)"""
-        if not self.qml_file.exists():
-            return
-        try:
-            mtime = self.qml_file.stat().st_mtime
-            if mtime > self.last_mtime:
-                self.last_mtime = mtime
-                self._schedule_reload("轮询")
-                # 重新添加监听(如果丢失)
-                if str(self.qml_file) not in self.watcher.files():
-                    self.watcher.addPath(str(self.qml_file))
-        except:
-            pass
     
     @Slot(str)
     def _on_dir_change(self, path):
         """目录变化时重新添加监听"""
         if str(self.qml_file) not in self.watcher.files() and self.qml_file.exists():
             self.watcher.addPath(str(self.qml_file))
-            self._schedule_reload("目录")
+            self._schedule_reload()
     
-    def _schedule_reload(self, source):
+    def _schedule_reload(self):
         """延迟触发重载(防抖)"""
-        print(f"📝 检测到文件变化 ({source})")
-        if self.qml_file.exists():
-            self.last_mtime = self.qml_file.stat().st_mtime
+        print(f"📝 检测到文件变化")
         self.reload_timer.start()
     
     @Slot()
