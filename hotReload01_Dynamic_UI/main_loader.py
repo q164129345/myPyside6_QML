@@ -21,18 +21,10 @@ class HotReloadController(QObject):
         self._source_url = ""
         
         # 文件监听
-        self.watcher = QFileSystemWatcher([str(qml_file), str(qml_file.parent)])
+        self.watcher = QFileSystemWatcher([str(qml_file)])
         self.watcher.fileChanged.connect(self._on_file_changed)
-        self.watcher.directoryChanged.connect(self._on_dir_change)
         
         print(f"🔥 QML 热重载已启用\n📁 监听: {qml_file.name}\n")
-    
-    @Slot(str)
-    def _on_dir_change(self, path):
-        """目录变化时重新添加监听"""
-        if str(self.qml_file) not in self.watcher.files() and self.qml_file.exists():
-            self.watcher.addPath(str(self.qml_file))
-            self._on_file_changed()
     
     @Slot()
     def _on_file_changed(self):
