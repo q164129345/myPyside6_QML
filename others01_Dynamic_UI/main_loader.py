@@ -94,103 +94,6 @@ class HotReloadController(QObject):
         return self._source_url
 
 
-def create_wrapper_qml():
-    """创建包装器 QML"""
-    return '''import QtQuick
-import QtQuick.Controls
-
-ApplicationWindow {
-    visible: true
-    width: 600
-    height: 400
-    title: "QML 热重载"
-    
-    Loader {
-        anchors.fill: parent
-        source: hotReloadController.sourceUrl
-        onStatusChanged: {
-            if (status === Loader.Ready) console.log("✅ 加载成功")
-            else if (status === Loader.Error) console.log("❌ 加载失败")
-        }
-    }
-    
-    Rectangle {
-        width: 160; height: 40
-        color: "#4CAF50"
-        radius: 20
-        anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 15 }
-        opacity: 0
-        
-        Text {
-            anchors.centerIn: parent
-            text: "✅ 已重载"
-            color: "white"
-            font { pixelSize: 14; bold: true }
-        }
-        
-        Connections {
-            target: hotReloadController
-            function onReloadSignal() {
-                parent.opacity = 1
-                hideTimer.restart()
-            }
-        }
-        
-        Timer {
-            id: hideTimer
-            interval: 1500
-            onTriggered: parent.opacity = 0
-        }
-        
-        Behavior on opacity { NumberAnimation { duration: 300 } }
-    }
-}
-'''
-
-
-def create_content_qml():
-    """创建示例内容 QML"""
-    return '''import QtQuick
-import QtQuick.Controls
-
-Rectangle {
-    width: 600
-    height: 400
-    
-    gradient: Gradient {
-        GradientStop { position: 0.0; color: "#667eea" }
-        GradientStop { position: 1.0; color: "#764ba2" }
-    }
-    
-    Column {
-        anchors.centerIn: parent
-        spacing: 20
-        
-        Text {
-            text: "🔥 QML 热重载"
-            font { pixelSize: 36; bold: true }
-            color: "white"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-        
-        Text {
-            text: "修改这个文件并保存,UI 会立即更新!"
-            font.pixelSize: 16
-            color: "white"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-        
-        Button {
-            text: "点我测试"
-            font.pixelSize: 18
-            anchors.horizontalCenter: parent.horizontalCenter
-            onClicked: console.log("按钮被点击!")
-        }
-    }
-}
-'''
-
-
 def main():
     app = QGuiApplication(sys.argv)
     
@@ -198,14 +101,6 @@ def main():
     example_dir = Path(__file__).parent / "Example"
     content_qml = example_dir / "Main_content.qml"
     wrapper_qml = example_dir / "Main_wrapper.qml"
-    
-    # 创建示例文件(如果不存在)
-    if not content_qml.exists():
-        example_dir.mkdir(exist_ok=True)
-        content_qml.write_text(create_content_qml(), encoding='utf-8')
-        print(f"✅ 已创建: {content_qml}")
-    
-    wrapper_qml.write_text(create_wrapper_qml(), encoding='utf-8')
     
     # 创建热重载控制器
     controller = HotReloadController(content_qml)
