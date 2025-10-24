@@ -9,7 +9,6 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtCore import QFileSystemWatcher, QTimer, Slot, QUrl, QObject, Signal, Property
 
-
 class HotReloadController(QObject):
     """热重载控制器"""
     
@@ -23,14 +22,8 @@ class HotReloadController(QObject):
         
         # 文件监听
         self.watcher = QFileSystemWatcher([str(qml_file), str(qml_file.parent)])
-        self.watcher.fileChanged.connect(self._schedule_reload)
+        self.watcher.fileChanged.connect(self._on_file_changed)
         self.watcher.directoryChanged.connect(self._on_dir_change)
-        
-        # 防抖定时器
-        self.reload_timer = QTimer()
-        self.reload_timer.setSingleShot(True)
-        self.reload_timer.setInterval(300)
-        self.reload_timer.timeout.connect(self._do_reload)
         
         print(f"🔥 QML 热重载已启用\n📁 监听: {qml_file.name}\n")
     
@@ -39,16 +32,13 @@ class HotReloadController(QObject):
         """目录变化时重新添加监听"""
         if str(self.qml_file) not in self.watcher.files() and self.qml_file.exists():
             self.watcher.addPath(str(self.qml_file))
-            self._schedule_reload()
-    
-    def _schedule_reload(self):
-        """延迟触发重载(防抖)"""
-        print(f"📝 检测到文件变化")
-        self.reload_timer.start()
+            self._on_file_changed()
     
     @Slot()
-    def _do_reload(self):
-        """执行重载:先清空再加载"""
+    def _on_file_changed(self):
+        """文件变化时重载"""
+        print(f"📝 检测到文件变化")
+        # 先清空再加载
         self._source_url = ""
         self.sourceChanged.emit("")
         QTimer.singleShot(100, self._load_new)
