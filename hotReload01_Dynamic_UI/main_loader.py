@@ -24,7 +24,7 @@ class HotReloadController(QObject):
         self.watcher = QFileSystemWatcher([str(qml_file)])
         self.watcher.fileChanged.connect(self._on_file_changed)
         
-        print(f"ML热重载已启用,监听: {qml_file.name}\n")
+        print(f"QML热重载已启用,监听: {qml_file.name}\n")
     
     @Slot()
     def _on_file_changed(self):
