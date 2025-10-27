@@ -13,7 +13,6 @@ class HotReloadController(QObject):
     """热重载控制器"""
     
     sourceChanged = Signal(str)
-    reloadSignal = Signal()
     
     def __init__(self, qml_file: Path):
         super().__init__()
@@ -34,7 +33,6 @@ class HotReloadController(QObject):
         self._source_url = f"{base_url}?t={int(time.time() * 1000)}"
         print(f"_source_url: {self._source_url}")
         self.sourceChanged.emit(self._source_url)
-        self.reloadSignal.emit()
         print(f"已重载\n")
     
     @Property(str, notify=sourceChanged)
