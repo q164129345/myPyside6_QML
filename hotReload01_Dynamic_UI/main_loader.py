@@ -57,9 +57,9 @@ def main():
     app = QGuiApplication(sys.argv)
     
     # QML 文件路径
-    example_dir = Path(__file__).parent / "Example"
-    content_qml = example_dir / "Main_content.qml"
-    wrapper_qml = example_dir / "Main_wrapper.qml"
+    example_dir = Path(__file__).parent / "Example" # Example 目录
+    content_qml = example_dir / "Main_content.qml"  # Main_content.qml
+    wrapper_qml = example_dir / "Main_wrapper.qml"  # Main_wrapper.qml
     
     # 创建热重载控制器
     controller = HotReloadController(content_qml)
