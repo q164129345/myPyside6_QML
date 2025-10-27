@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtCore import QFileSystemWatcher, QTimer, Slot, QUrl, QObject, Signal, Property
+from PySide6.QtCore import QFileSystemWatcher, Slot, QUrl, QObject, Signal, Property
 
 class HotReloadController(QObject):
     """热重载控制器"""
@@ -22,21 +22,13 @@ class HotReloadController(QObject):
         
         # 文件监听
         self.watcher = QFileSystemWatcher([str(qml_file)])
-        self.watcher.fileChanged.connect(self._on_file_changed)
-        
+        self.watcher.fileChanged.connect(self._load_new)
         print(f"QML热重载已启用,监听: {qml_file.name}\n")
     
     @Slot()
-    def _on_file_changed(self):
-        """文件变化时重载"""
-        print(f"📝 检测到文件变化")
-        # 先清空再加载
-        self._source_url = ""
-        self.sourceChanged.emit("")
-        QTimer.singleShot(100, self._load_new)
-    
     def _load_new(self):
         """加载新源(添加时间戳防缓存)"""
+        print(f"📝 检测到文件变化")
         base_url = QUrl.fromLocalFile(str(self.qml_file.resolve())).toString()
         self._source_url = f"{base_url}?t={int(time.time() * 1000)}"
         print(f"_source_url: {self._source_url}")
