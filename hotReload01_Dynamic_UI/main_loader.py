@@ -24,7 +24,7 @@ class HotReloadController(QObject):
         self.watcher = QFileSystemWatcher([str(qml_file)])
         self.watcher.fileChanged.connect(self._on_file_changed)
         
-        print(f"🔥 QML 热重载已启用\n📁 监听: {qml_file.name}\n")
+        print(f"ML热重载已启用,监听: {qml_file.name}\n")
     
     @Slot()
     def _on_file_changed(self):
@@ -39,15 +39,17 @@ class HotReloadController(QObject):
         """加载新源(添加时间戳防缓存)"""
         base_url = QUrl.fromLocalFile(str(self.qml_file.resolve())).toString()
         self._source_url = f"{base_url}?t={int(time.time() * 1000)}"
+        print(f"_source_url: {self._source_url}")
         self.sourceChanged.emit(self._source_url)
         self.reloadSignal.emit()
-        print(f"✅ 已重载\n")
+        print(f"已重载\n")
     
     @Property(str, notify=sourceChanged)
     def sourceUrl(self):
         """QML 绑定的源 URL"""
         if not self._source_url:
             self._source_url = QUrl.fromLocalFile(str(self.qml_file.resolve())).toString()
+        print(f"sourceUrl: {self._source_url}")
         return self._source_url
 
 

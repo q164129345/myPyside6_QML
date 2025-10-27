@@ -38,14 +38,14 @@ Rectangle {
             }
         }
         
-        // Button {
-        //     text: "另一个按钮"
-        //     font.pixelSize: 18
-        //     anchors.horizontalCenter: parent.horizontalCenter
-        //     onClicked: {
-        //         console.log("另一个按钮被点击!")
-        //     }
-        // }
+        Button {
+            text: "另一个按钮"
+            font.pixelSize: 18
+            anchors.horizontalCenter: parent.horizontalCenter
+            onClicked: {
+                console.log("另一个按钮被点击!")
+            }
+        }
 
         Text {
             text: "保存后界面会立即刷新!"

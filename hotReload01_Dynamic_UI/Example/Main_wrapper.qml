@@ -11,8 +11,8 @@ ApplicationWindow {
         anchors.fill: parent
         source: hotReloadController.sourceUrl
         onStatusChanged: {
-            if (status === Loader.Ready) console.log("✅ 加载成功")
-            else if (status === Loader.Error) console.log("❌ 加载失败")
+            if (status === Loader.Ready) console.log("loaded successfully")
+            else if (status === Loader.Error) console.log("loaded failed")
         }
     }
 }
