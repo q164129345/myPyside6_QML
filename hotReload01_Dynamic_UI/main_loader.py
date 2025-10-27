@@ -12,7 +12,7 @@ from PySide6.QtCore import QFileSystemWatcher, Slot, QUrl, QObject, Signal, Prop
 class HotReloadController(QObject):
     """热重载控制器"""
     
-    sourceChanged = Signal(str)
+    sourceChanged = Signal()
     
     def __init__(self, qml_file: Path):
         super().__init__()
@@ -32,9 +32,10 @@ class HotReloadController(QObject):
         base_url = QUrl.fromLocalFile(str(self.qml_file.resolve())).toString()
         self._source_url = f"{base_url}?t={int(time.time() * 1000)}"
         print(f"_source_url: {self._source_url}")
-        self.sourceChanged.emit(self._source_url)
+        self.sourceChanged.emit()
         print(f"已重载\n")
     
+    # 暴露给QML的属性，getter方法
     @Property(str, notify=sourceChanged)
     def sourceUrl(self):
         """QML 绑定的源 URL"""
