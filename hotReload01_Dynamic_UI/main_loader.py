@@ -19,6 +19,7 @@ class HotReloadController(QObject):
         super().__init__()
         self.qml_file = qml_file
         self._source_url = ""
+        print(f"初始化热重载控制器,监听文件: {qml_file}\n")
         
         # 文件监听
         self.watcher = QFileSystemWatcher([str(qml_file)])
