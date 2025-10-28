@@ -36,6 +36,8 @@ class HotReloadController(QObject):
         print(f"已重载\n")
     
     # 暴露给QML的属性，getter方法
+    # str：让QML侧知道函数返回值是字符串
+    # notify=sourceChanged：当 sourceChanged 信号发出时，Qt会告诉QML侧该属性已更改，需要读取，更新 UI
     @Property(str, notify=sourceChanged)
     def sourceUrl(self):
         """QML 绑定的源 URL"""
