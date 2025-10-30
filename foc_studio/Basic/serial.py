@@ -102,4 +102,9 @@ class mySerial(QObject):
     def get_buffer_size(self):
         return len(self._receive_buffer)
 
+# Test the mySerial class
+if __name__ == "__main__":
+    # Simple test
+    serial = mySerial()
+
 
