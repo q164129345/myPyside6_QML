@@ -1,10 +1,11 @@
 import sys
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot, Property
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
 
 class mySerial(QObject):
     
     connectionStatusChanged = Signal(bool, str)
+    isConnectedChanged = Signal()
     
     def __init__(self):
         super().__init__()
@@ -14,6 +15,11 @@ class mySerial(QObject):
         self._receive_buffer = bytearray()  # Efficient byte buffer using bytearray
         self._serial_port.readyRead.connect(self.On_Data_Ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready
         self.Scan_Ports()
+
+    @Property(bool, notify=isConnectedChanged)
+    def isConnected(self):
+        """QML可读取的连接状态属性"""
+        return self._is_connected
 
     def Scan_Ports(self):
         available_ports = QSerialPortInfo.availablePorts() # search available serial ports
@@ -49,6 +55,7 @@ class mySerial(QObject):
         print(f"[mySerial] try to open: {port_name}, baud rate: {baud_rate}", flush=True)
         if self._serial_port.open(QSerialPort.ReadWrite):
             self._is_connected = True
+            self.isConnectedChanged.emit()  # 触发属性变化信号
             success_msg = f"open successfully: {port_name}"
             print(f"[mySerial] {success_msg}", flush=True)
             print(f"[mySerial] baud_rate:{baud_rate}, data_bit:8, Parity:no, stop_bit:1", flush=True)
@@ -58,6 +65,16 @@ class mySerial(QObject):
             error_detail = self._serial_port.errorString()
             print(f"[mySerial] {error_msg}: {error_detail}", flush=True)
             self.connectionStatusChanged.emit(False, error_msg)
+
+    @Slot()
+    def closePort(self):
+        """关闭串口"""
+        if self._is_connected and self._serial_port.isOpen():
+            self._serial_port.close()
+            self._is_connected = False
+            self.isConnectedChanged.emit()  # 触发属性变化信号
+            print("[mySerial] Port closed", flush=True)
+            self.connectionStatusChanged.emit(False, "Port closed")
 
     def On_Data_Ready(self):
         """

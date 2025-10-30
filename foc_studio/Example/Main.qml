@@ -20,6 +20,17 @@ ApplicationWindow {
 
     // 当前选中的页面
     property string currentPage: "SYS"
+    
+    // 串口连接状态 - 直接绑定到后端属性
+    property bool isSerialConnected: serialBackend.isConnected
+
+    // 监听串口连接状态变化消息
+    Connections {
+        target: serialBackend
+        function onConnectionStatusChanged(connected, message) {
+            console.log("Serial status:", connected, message)
+        }
+    }
 
     // 主布局 - 水平布局
     RowLayout {
@@ -36,6 +47,47 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 5
                 spacing: 5
+
+                // 串口状态指示灯
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    color: "transparent"
+
+                    // 圆形指示灯
+                    Rectangle {
+                        id: statusIndicator
+                        width: 30
+                        height: 30
+                        radius: 15
+                        anchors.centerIn: parent
+                        color: isSerialConnected ? "#2ecc71" : "#7f8c8d"  // 绿色:已连接, 灰色:未连接
+                        border.color: isSerialConnected ? "#27ae60" : "#5a6469"
+                        border.width: 2
+
+                        // 呼吸灯动画 - 仅在连接时生效
+                        SequentialAnimation on opacity {
+                            running: isSerialConnected
+                            loops: Animation.Infinite
+                            
+                            NumberAnimation {
+                                from: 1.0
+                                to: 0.3
+                                duration: 1000
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                from: 0.3
+                                to: 1.0
+                                duration: 1000
+                                easing.type: Easing.InOutQuad
+                            }
+                        }
+
+                        // 未连接时恢复完全不透明
+                        opacity: isSerialConnected ? 1.0 : 0.5
+                    }
+                }
 
                 // SYS 按钮
                 Rectangle {
@@ -117,11 +169,47 @@ ApplicationWindow {
                 Rectangle {
                     color: "#ecf0f1"
                     
-                    Text {
+                    ColumnLayout {
                         anchors.centerIn: parent
-                        text: "SYS 系统功能页面"
-                        font.pixelSize: 24
-                        color: "#2c3e50"
+                        spacing: 20
+
+                        Text {
+                            text: "SYS 系统功能页面"
+                            font.pixelSize: 24
+                            color: "#2c3e50"
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        // 串口状态显示
+                        Text {
+                            text: isSerialConnected ? "串口状态: 已连接 ✓" : "串口状态: 未连接"
+                            font.pixelSize: 16
+                            color: isSerialConnected ? "#27ae60" : "#e74c3c"
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        // 测试按钮
+                        RowLayout {
+                            spacing: 10
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Button {
+                                text: "连接串口 (测试)"
+                                enabled: !isSerialConnected
+                                onClicked: {
+                                    // 这里使用一个测试端口,您需要根据实际情况修改
+                                    serialBackend.openPort("COM4", 115200)
+                                }
+                            }
+
+                            Button {
+                                text: "断开串口"
+                                enabled: isSerialConnected
+                                onClicked: {
+                                    serialBackend.closePort()
+                                }
+                            }
+                        }
                     }
                 }
 
