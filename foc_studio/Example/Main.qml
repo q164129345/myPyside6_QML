@@ -7,6 +7,8 @@ import QtQuick.Layouts
 
 // Window - QML应用程序的主窗口
 ApplicationWindow {
+    id: root
+    
     // 窗口初始尺寸
     width: 900
     height: 750
@@ -165,64 +167,14 @@ ApplicationWindow {
                 anchors.fill: parent
                 currentIndex: currentPage === "SYS" ? 0 : 1
 
-                // SYS 页面
-                Rectangle {
-                    color: "#ecf0f1"
-                    
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: 20
-
-                        Text {
-                            text: "SYS 系统功能页面"
-                            font.pixelSize: 24
-                            color: "#2c3e50"
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-
-                        // 串口状态显示
-                        Text {
-                            text: isSerialConnected ? "串口状态: 已连接 ✓" : "串口状态: 未连接"
-                            font.pixelSize: 16
-                            color: isSerialConnected ? "#27ae60" : "#e74c3c"
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-
-                        // 测试按钮
-                        RowLayout {
-                            spacing: 10
-                            Layout.alignment: Qt.AlignHCenter
-
-                            Button {
-                                text: "连接串口 (测试)"
-                                enabled: !isSerialConnected
-                                onClicked: {
-                                    // 这里使用一个测试端口,您需要根据实际情况修改
-                                    serialBackend.openPort("COM4", 115200)
-                                }
-                            }
-
-                            Button {
-                                text: "断开串口"
-                                enabled: isSerialConnected
-                                onClicked: {
-                                    serialBackend.closePort()
-                                }
-                            }
-                        }
-                    }
+                // SYS 页面 - 使用独立的组件
+                SYS {
+                    isSerialConnected: root.isSerialConnected
                 }
 
-                // CAN 页面
-                Rectangle {
-                    color: "#ecf0f1"
-                    
-                    Text {
-                        anchors.centerIn: parent
-                        text: "CAN 通讯功能页面"
-                        font.pixelSize: 24
-                        color: "#2c3e50"
-                    }
+                // CAN 页面 - 使用独立的组件
+                CAN {
+                    isSerialConnected: root.isSerialConnected
                 }
             }
         }
