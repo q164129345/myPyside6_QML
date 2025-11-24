@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtCore import QFileSystemWatcher, Slot, QUrl, QObject, Signal, Property
+from PySide6.QtCore import QFileSystemWatcher, Slot, QUrl, QObject, Signal, Property, qInstallMessageHandler
 
 class HotReloadController(QObject):
     """热重载控制器"""
@@ -48,6 +48,9 @@ class HotReloadController(QObject):
 
 
 def main():
+    # 解决 Windows 下中文乱码
+    qInstallMessageHandler(lambda mode, context, message: print(message))
+
     app = QGuiApplication(sys.argv)
     
     # QML 文件路径

@@ -30,7 +30,7 @@ Rectangle {
         }
         
         Button {
-            text: "热重载成功2"
+            text: "热重载成功"
             font.pixelSize: 18
             anchors.horizontalCenter: parent.horizontalCenter
             onClicked: {
@@ -39,7 +39,7 @@ Rectangle {
         }
         
         Button {
-            text: "另一个按钮"
+            text: "另二个按钮"
             font.pixelSize: 18
             anchors.horizontalCenter: parent.horizontalCenter
             onClicked: {

@@ -12,7 +12,7 @@ def qt_message_handler(mode, context, message):
         QtMsgType.QtDebugMsg: "[DEBUG]",
         QtMsgType.QtInfoMsg: "[INFO]",
         QtMsgType.QtWarningMsg: "[WARN]",
-        QtMsgType.QtCriticalMsg: "[CRITICAL]",
+        QtMsgType.QtCriticalMsg: "[ERROR]",
         QtMsgType.QtFatalMsg: "[FATAL]"
     }.get(mode, "[LOG]")
     
