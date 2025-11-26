@@ -41,7 +41,7 @@ ApplicationWindow {
 
         // 左侧按钮栏
         Rectangle {
-            Layout.preferredWidth: 60
+            Layout.preferredWidth: 40
             Layout.fillHeight: true
             color: "#2c3e50"  // 深蓝灰色背景
 
@@ -53,15 +53,15 @@ ApplicationWindow {
                 // 串口状态指示灯
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 50
+                    Layout.preferredHeight: 40
                     color: "transparent"
 
                     // 圆形指示灯
                     Rectangle {
                         id: statusIndicator
-                        width: 30
-                        height: 30
-                        radius: 15
+                        width: 25
+                        height: 25
+                        radius: 12.5
                         anchors.centerIn: parent
                         color: isSerialConnected ? "#2ecc71" : "#7f8c8d"  // 绿色:已连接, 灰色:未连接
                         border.color: isSerialConnected ? "#27ae60" : "#5a6469"
@@ -94,7 +94,7 @@ ApplicationWindow {
                 // SYS 按钮
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 60
+                    Layout.preferredHeight: 40
                     color: currentPage === "SYS" ? "#3498db" : "#34495e"
                     radius: 5
 
@@ -105,7 +105,7 @@ ApplicationWindow {
                         Text {
                             text: "SYS"
                             color: "white"
-                            font.pixelSize: 14
+                            font.pixelSize: 10
                             font.bold: true
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
@@ -123,7 +123,7 @@ ApplicationWindow {
                 // CAN 按钮
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 60
+                    Layout.preferredHeight: 40
                     color: currentPage === "CAN" ? "#3498db" : "#34495e"
                     radius: 5
 
@@ -134,7 +134,7 @@ ApplicationWindow {
                         Text {
                             text: "CAN"
                             color: "white"
-                            font.pixelSize: 14
+                            font.pixelSize: 10
                             font.bold: true
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
