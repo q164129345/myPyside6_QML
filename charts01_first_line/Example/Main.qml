@@ -16,7 +16,7 @@ ApplicationWindow {
     visible: true
     width: 600
     height: 400
-    title: "Charts01 - 最简单的折线图"
+    title: "Charts02 - 改变曲线的颜色与粗细"
 
     // ChartView 是图表的容器
     ChartView {
