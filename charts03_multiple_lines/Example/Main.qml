@@ -22,7 +22,7 @@ ApplicationWindow {
         anchors.fill: parent
         antialiasing: true
 
-        // ========== 自定义坐标轴（关键！）==========
+        // ========== 自定义坐标轴（关键！如果没有自定义坐标轴，曲线显示不正确）==========
         ValueAxis {
             id: axisX
             min: 0
