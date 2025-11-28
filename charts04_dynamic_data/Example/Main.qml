@@ -89,20 +89,6 @@ ApplicationWindow {
             }
 
             Button {
-                text: "添加5个点"
-                onClicked: {
-                    for (var i = 0; i < 5; i++) {
-                        var randomY = Math.random() * 100
-                        dataSeries.append(currentX, randomY)
-                        currentX++
-                    }
-                    if (currentX > axisX.max) {
-                        axisX.max = currentX + 5
-                    }
-                }
-            }
-
-            Button {
                 text: "清除数据"
                 onClicked: {
                     dataSeries.clear()  // 清除所有数据点
