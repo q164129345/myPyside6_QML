@@ -21,6 +21,7 @@ ApplicationWindow {
 
     // ========== 属性 ==========
     property int currentX: 0            // 当前X坐标
+    property int currentY : 0           // 当前Y坐标
     property int maxPoints: 50          // 最多显示的数据点数量
     property bool isRunning: false      // 是否正在运行
 
@@ -32,10 +33,10 @@ ApplicationWindow {
         repeat: true            // 重复执行
         onTriggered: {
             // 生成模拟数据 (正弦波 + 噪声)
-            var value = 50 + 40 * Math.sin(currentX * 0.1) + (Math.random() - 0.5) * 10
+            currentY = 50 + 40 * Math.sin(currentX * 0.1) + (Math.random() - 0.5) * 10
             
             // 添加新数据点
-            dataSeries.append(currentX, value)
+            dataSeries.append(currentX, currentY)
             currentX++
             
             // 如果超过最大点数，删除最旧的点
