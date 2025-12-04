@@ -117,7 +117,7 @@ ApplicationWindow {
                 text: "数据点: " + dataSeries.count
             }
 
-            Item { Layout.fillWidth: true }
+            Item { Layout.fillWidth: true } // 占位，推挤右侧控件
 
             Label {
                 text: "更新频率:"
