@@ -84,9 +84,20 @@ ApplicationWindow {
                 onHovered: function(point, state) {
                     if (state) {
                         // 鼠标进入曲线区域
+                        // 坐标转换(数据坐标->屏幕坐标)
+                        // 1. point 是数据坐标，需要转换为屏幕坐标来放置 Tooltip
                         tooltip.x = chartView.mapToPosition(point, dataSeries).x + 10
+                        //          ↑                                          ↑
+                        //          转换函数                                   +10 是偏移量，避免遮挡鼠标
                         tooltip.y = chartView.mapToPosition(point, dataSeries).y - 40
+                        //                                                     ↑
+                        //                                                     -40 让 Tooltip 显示在点的上方
+                        // 2. 设置 Tooltip 显示的文字
                         tooltipText.text = "X: " + point.x.toFixed(1) + "\nY: " + point.y.toFixed(1)
+                        //                         ↑                    ↑
+                        //                         保留1位小数           \n 换行
+                        
+                        // 3. 显示 Tooltip
                         tooltip.visible = true
                     } else {
                         // 鼠标离开曲线区域
