@@ -19,7 +19,8 @@ ApplicationWindow {
     title: "Charts06 - 鼠标悬停显示坐标"
 
     // ========== 属性 ==========
-    property int currentX: 0
+    property int currentX : 0
+    property int currentY : 0
     property int maxPoints: 50
     property bool isRunning: false
 
@@ -29,8 +30,8 @@ ApplicationWindow {
         running: isRunning
         repeat: true
         onTriggered: {
-            var value = 50 + 40 * Math.sin(currentX * 0.1) + (Math.random() - 0.5) * 10
-            dataSeries.append(currentX, value)
+            currentY = 50 + 40 * Math.sin(currentX * 0.1) + (Math.random() - 0.5) * 10
+            dataSeries.append(currentX, currentY)
             currentX++
             
             if (dataSeries.count > maxPoints) {
