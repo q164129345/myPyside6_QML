@@ -91,7 +91,7 @@ ApplicationWindow {
                 width: 2
                 axisX: axisX
                 axisY: axisY
-                visible: checkbox1.checked
+                visible: checkbox1.checked // checkbox 控制可见性
 
                 // ========== 鼠标悬停事件 ==========
                 onHovered: function(point, state) {
@@ -113,7 +113,7 @@ ApplicationWindow {
                 width: 2
                 axisX: axisX
                 axisY: axisY
-                visible: checkbox2.checked
+                visible: checkbox2.checked // checkbox 控制可见性
 
                 // ========== 鼠标悬停事件 ==========
                 onHovered: function(point, state) {
