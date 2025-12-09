@@ -158,14 +158,14 @@ ApplicationWindow {
             CheckBox {
                 id: checkbox1
                 text: "正弦波"
-                checked: true
+                checked: true  // 默认显示
                 palette.text: "#4CAF50"
             }
 
             CheckBox {
                 id: checkbox2
                 text: "余弦波"
-                checked: true
+                checked: true  // 默认显示
                 palette.text: "#2196F3"
             }
 
