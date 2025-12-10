@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from PySide6.QtWidgets import QApplication  # QtCharts 需要 QApplication 而非 QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
@@ -28,6 +29,9 @@ def qt_message_handler(mode, context, message):
         print(f"{mode_str}: {message}")
 
 def main():
+    # 设置 QML 样式为 Fusion,必须在创建 QApplication 之前设置
+    os.environ["QT_QUICK_CONTROLS_STYLE"] = "Fusion"
+    
     # Install the custom handler
     qInstallMessageHandler(qt_message_handler)
 
