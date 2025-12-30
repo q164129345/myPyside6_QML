@@ -28,6 +28,10 @@ if __name__ == '__main__':
     pq.push(Item('task1'), 1)
     pq.push(Item('task2'), 5)
     pq.push(Item('task3'), 3)
+    pq.push(Item('task4'), 4)
 
+
+    print(pq.pop())
+    print(pq.pop())
     print(pq.pop())
     print(pq.pop())
