@@ -7,6 +7,8 @@ Rectangle {
     id: root
     color: "#ecf0f1"
     
+    // qmllint disable unqualified
+    
     // 接收串口连接状态
     property bool isSerialConnected: false
     

@@ -8,7 +8,7 @@ import QtQuick.Layouts
 // Window - QML应用程序的主窗口
 ApplicationWindow {
     id: root
-    
+
     // 窗口初始尺寸
     width: 900
     height: 750
@@ -20,10 +20,12 @@ ApplicationWindow {
     // 窗口标题
     title: "FOC Studio"
 
+    // qmllint disable unqualified
+    
     // 当前选中的页面
     property string currentPage: "SYS"
-    
-    // 串口连接状态 - 直接绑定到后端属性
+        
+    // 串口连接状态 - 直接绑定到后端属性（serialBackend 从 Python setContextProperty 注入）
     property bool isSerialConnected: serialBackend.isConnected
 
     // 监听串口连接状态变化消息
