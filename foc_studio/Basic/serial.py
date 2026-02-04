@@ -16,7 +16,7 @@ class mySerial(QObject):
         self._serial_port.readyRead.connect(self.On_Data_Ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready
         self.Scan_Ports()
 
-    @Property(bool, notify=isConnectedChanged)
+    @Property(bool, notify=isConnectedChanged)  # type: ignore
     def isConnected(self):
         """QML可读取的连接状态属性"""
         return self._is_connected
@@ -47,13 +47,13 @@ class mySerial(QObject):
         # Serial port settings
         self._serial_port.setPortName(port_name)
         self._serial_port.setBaudRate(baud_rate)             
-        self._serial_port.setDataBits(QSerialPort.Data8)      
-        self._serial_port.setParity(QSerialPort.NoParity)     
-        self._serial_port.setStopBits(QSerialPort.OneStop)
-        self._serial_port.setFlowControl(QSerialPort.NoFlowControl)
+        self._serial_port.setDataBits(QSerialPort.Data8)  # type: ignore   
+        self._serial_port.setParity(QSerialPort.NoParity) # type: ignore    
+        self._serial_port.setStopBits(QSerialPort.OneStop) # type: ignore
+        self._serial_port.setFlowControl(QSerialPort.NoFlowControl) # type: ignore
         
         print(f"[mySerial] try to open: {port_name}, baud rate: {baud_rate}", flush=True)
-        if self._serial_port.open(QSerialPort.ReadWrite):
+        if self._serial_port.open(QSerialPort.ReadWrite): # type: ignore
             self._is_connected = True
             self.isConnectedChanged.emit()  # 触发属性变化信号
             success_msg = f"open successfully: {port_name}"
