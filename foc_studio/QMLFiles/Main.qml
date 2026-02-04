@@ -5,6 +5,8 @@ import QtQuick.Controls
 // 导入布局模块 - 提供RowLayout、ColumnLayout等布局管理器
 import QtQuick.Layouts
 
+// qmllint disable unqualified
+
 // Window - QML应用程序的主窗口
 ApplicationWindow {
     id: root
@@ -20,8 +22,6 @@ ApplicationWindow {
     // 窗口标题
     title: "FOC Studio"
 
-    // qmllint disable unqualified
-    
     // 当前选中的页面
     property string currentPage: "SYS"
         
