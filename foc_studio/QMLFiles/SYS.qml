@@ -8,9 +8,10 @@ Rectangle {
     color: "#ecf0f1"
     
     // qmllint disable unqualified
-    
+
     // 接收串口连接状态
     property bool isSerialConnected: false
+    property var portListModel: []  // 存储串口列表
     
     ColumnLayout {
         anchors.centerIn: parent
@@ -31,17 +32,68 @@ Rectangle {
             Layout.alignment: Qt.AlignHCenter
         }
 
-        // 测试按钮
+        // 串口选择区域
+        RowLayout {
+            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+
+            Text {
+                text: "选择串口："
+                font.pixelSize: 14
+                color: "#2c3e50"
+            }
+
+            ComboBox {
+                id: portComboBox
+                width: 450
+                model: root.portListModel
+                textRole: "portName"
+                enabled: !root.isSerialConnected
+                
+                displayText: {
+                    if (root.portListModel.length === 0) {
+                        return "未找到串口"
+                    } else if (currentIndex < 0) {
+                        return "请选择串口"
+                    } else {
+                        return root.portListModel[currentIndex].portName + " - " + root.portListModel[currentIndex].description
+                    }
+                }
+                
+                delegate: ItemDelegate {
+                    width: 250
+                    text: modelData.portName + " - " + modelData.description
+                    highlighted: portComboBox.highlightedIndex === index
+                }
+                
+                popup: Popup {
+                    width: 250
+                    implicitHeight: contentItem.implicitHeight
+                    padding: 1
+                    
+                    contentItem: ListView {
+                        clip: true
+                        implicitHeight: contentHeight
+                        width: 250
+                        model: portComboBox.popup.visible ? portComboBox.delegateModel : null
+                        currentIndex: portComboBox.highlightedIndex
+                        ScrollIndicator.vertical: ScrollIndicator { }
+                    }
+                }
+            }
+        }
+
+        // 连接/断开按钮
         RowLayout {
             spacing: 10
             Layout.alignment: Qt.AlignHCenter
 
             Button {
-                text: "连接串口 (测试)"
-                enabled: !root.isSerialConnected
+                text: "连接串口"
+                enabled: !root.isSerialConnected && portComboBox.currentIndex >= 0
                 onClicked: {
-                    // 这里使用一个测试端口,您需要根据实际情况修改
-                    serialBackend.openPort("COM4", 115200)
+                    var selectedPort = root.portListModel[portComboBox.currentIndex]
+                    serialBackend.openPort(selectedPort.portName, 460800)
                 }
             }
 
@@ -52,6 +104,26 @@ Rectangle {
                     serialBackend.closePort()
                 }
             }
+        }
+    }
+
+    // 监听串口列表变化
+    Connections {
+        target: serialBackend
+        function onPortsListChanged(portsList) {
+            root.portListModel = portsList
+            // 如果有多个串口，不自动选择，让用户手动选择
+            if (portsList.length > 0) {
+                portComboBox.currentIndex = -1  // 不自动选择，显示"请选择串口"
+            }
+        }
+    }
+    
+    // 初始化时获取串口列表
+    Component.onCompleted: {
+        root.portListModel = serialBackend.portsList
+        if (serialBackend.portsList.length > 0) {
+            portComboBox.currentIndex = -1  // 不自动选择
         }
     }
 }

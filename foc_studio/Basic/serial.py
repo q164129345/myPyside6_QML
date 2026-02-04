@@ -6,6 +6,7 @@ class mySerial(QObject):
     
     connectionStatusChanged = Signal(bool, str)
     isConnectedChanged = Signal()
+    portsListChanged = Signal(list)  # 发射串口列表给QML
     
     def __init__(self):
         super().__init__()
@@ -20,6 +21,11 @@ class mySerial(QObject):
     def isConnected(self):
         """QML可读取的连接状态属性"""
         return self._is_connected
+    
+    @Property(list, notify=portsListChanged)  # type: ignore
+    def portsList(self):
+        """QML可读取的串口列表属性"""
+        return self._ports_list
 
     def Scan_Ports(self):
         available_ports = QSerialPortInfo.availablePorts() # search available serial ports
@@ -32,6 +38,7 @@ class mySerial(QObject):
                 print(f"[mySerial] find: {port_name} - {port.description()}", flush=True)
 
         print(f"[mySerial] scanning completed，{len(self._ports_list)} ports found", flush=True)
+        self.portsListChanged.emit(self._ports_list)  # 发射串口列表给QML
 
     @Slot(str, int)
     def openPort(self, port_name, baud_rate=9600):
