@@ -23,9 +23,9 @@ Rectangle {
 
         // 串口状态显示
         Text {
-            text: isSerialConnected ? "串口状态: 已连接 ✓" : "串口状态: 未连接"
+            text: root.isSerialConnected ? "串口状态: 已连接 ✓" : "串口状态: 未连接"
             font.pixelSize: 16
-            color: isSerialConnected ? "#27ae60" : "#e74c3c"
+            color: root.isSerialConnected ? "#27ae60" : "#e74c3c"
             Layout.alignment: Qt.AlignHCenter
         }
 
@@ -36,7 +36,7 @@ Rectangle {
 
             Button {
                 text: "连接串口 (测试)"
-                enabled: !isSerialConnected
+                enabled: !root.isSerialConnected
                 onClicked: {
                     // 这里使用一个测试端口,您需要根据实际情况修改
                     serialBackend.openPort("COM4", 115200)
@@ -45,7 +45,7 @@ Rectangle {
 
             Button {
                 text: "断开串口"
-                enabled: isSerialConnected
+                enabled: root.isSerialConnected
                 onClicked: {
                     serialBackend.closePort()
                 }

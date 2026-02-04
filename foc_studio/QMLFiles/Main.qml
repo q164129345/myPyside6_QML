@@ -63,13 +63,13 @@ ApplicationWindow {
                         height: 25
                         radius: 12.5
                         anchors.centerIn: parent
-                        color: isSerialConnected ? "#2ecc71" : "#7f8c8d"  // 绿色:已连接, 灰色:未连接
-                        border.color: isSerialConnected ? "#27ae60" : "#5a6469"
+                        color: root.isSerialConnected ? "#2ecc71" : "#7f8c8d"  // 绿色:已连接, 灰色:未连接
+                        border.color: root.isSerialConnected ? "#27ae60" : "#5a6469"
                         border.width: 2
 
                         // 呼吸灯动画 - 仅在连接时生效
                         SequentialAnimation on opacity {
-                            running: isSerialConnected
+                            running: root.isSerialConnected
                             loops: Animation.Infinite
                             
                             NumberAnimation {
@@ -87,7 +87,7 @@ ApplicationWindow {
                         }
 
                         // 未连接时恢复完全不透明
-                        opacity: isSerialConnected ? 1.0 : 0.5
+                        opacity: root.isSerialConnected ? 1.0 : 0.5
                     }
                 }
 
@@ -95,7 +95,7 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
-                    color: currentPage === "SYS" ? "#3498db" : "#34495e"
+                    color: root.currentPage === "SYS" ? "#3498db" : "#34495e"
                     radius: 5
 
                     Column {
@@ -115,7 +115,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            currentPage = "SYS"
+                            root.currentPage = "SYS"
                         }
                     }
                 }
@@ -124,7 +124,7 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
-                    color: currentPage === "CAN" ? "#3498db" : "#34495e"
+                    color: root.currentPage === "CAN" ? "#3498db" : "#34495e"
                     radius: 5
 
                     Column {
@@ -144,7 +144,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            currentPage = "CAN"
+                            root.currentPage = "CAN"
                         }
                     }
                 }
@@ -165,7 +165,7 @@ ApplicationWindow {
             // 使用 StackLayout 来切换不同的页面
             StackLayout {
                 anchors.fill: parent
-                currentIndex: currentPage === "SYS" ? 0 : 1
+                currentIndex: root.currentPage === "SYS" ? 0 : 1
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
