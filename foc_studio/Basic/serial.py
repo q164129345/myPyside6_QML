@@ -1,4 +1,5 @@
 import sys
+from typing import Dict, List
 from PySide6.QtCore import QObject, Signal, Slot, Property
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
 
@@ -18,16 +19,16 @@ class mySerial(QObject):
         self.Scan_Ports()
 
     @Property(bool, notify=isConnectedChanged)  # type: ignore
-    def isConnected(self):
+    def isConnected(self) -> bool:
         """QML可读取的连接状态属性"""
         return self._is_connected
     
     @Property(list, notify=portsListChanged)  # type: ignore
-    def portsList(self):
+    def portsList(self) -> list:
         """QML可读取的串口列表属性"""
         return self._ports_list
 
-    def Scan_Ports(self):
+    def Scan_Ports(self) -> None:
         available_ports = QSerialPortInfo.availablePorts() # search available serial ports
         
         # Scan and print available ports
@@ -41,7 +42,7 @@ class mySerial(QObject):
         self.portsListChanged.emit(self._ports_list)  # 发射串口列表给QML
 
     @Slot(str, int)
-    def openPort(self, port_name, baud_rate=9600):
+    def openPort(self, port_name: str, baud_rate: int = 9600) -> None:
         """
         Args:
             port_name:  for example :"COM1"
@@ -74,7 +75,7 @@ class mySerial(QObject):
             self.connectionStatusChanged.emit(False, error_msg)
 
     @Slot()
-    def closePort(self):
+    def closePort(self) -> None:
         """关闭串口"""
         if self._is_connected and self._serial_port.isOpen():
             self._serial_port.close()
@@ -101,7 +102,7 @@ class mySerial(QObject):
             # print debug info
             # print(f"[mySerial] received {data.size()} bytes" , flush=True)
 
-    def read_buffer(self, size):
+    def read_buffer(self, size: int) -> bytes:
         """
         read and remove specified number of bytes from buffer
         Args:
@@ -120,10 +121,10 @@ class mySerial(QObject):
             del self._receive_buffer[:size]  # Efficient deletion from bytearray
             return data
     
-    def clear_buffer(self):
+    def clear_buffer(self) -> None:
         self._receive_buffer.clear() # clear all
     
-    def get_buffer_size(self):
+    def get_buffer_size(self) -> int:
         return len(self._receive_buffer)
 
 # Test the mySerial class
