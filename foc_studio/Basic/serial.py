@@ -5,6 +5,7 @@ from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
 
 class mySerial(QObject):
     
+    RXBUFFER_SIZE = 10240 # 接收缓冲区大小(预防内存不断增长，最终导致内存崩溃)
     connectionStatusChanged = Signal(bool, str)
     isConnectedChanged = Signal()
     portsListChanged = Signal(list)  # 发射串口列表给QML
@@ -94,6 +95,10 @@ class mySerial(QObject):
         if self._serial_port.bytesAvailable() > 0:
             # Read all available bytes at once (more efficient than reading one by one)
             data = self._serial_port.readAll()
+
+            # 保证接收缓冲区不会超过设定大小
+            if len(self._receive_buffer) + data.size() > self.RXBUFFER_SIZE:
+                self._receive_buffer.clear()  # 清空缓冲区以防溢出
             
             # Convert QByteArray to bytes and extend the buffer
             # bytearray.extend() is highly optimized for appending bytes
