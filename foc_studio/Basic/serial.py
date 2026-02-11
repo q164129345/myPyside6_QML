@@ -17,7 +17,6 @@ class mySerial(QObject):
         self._serial_port = QSerialPort() # create serial port object
         self._is_connected = False
         self._ports_list = [] # available ports list
-        self._receive_buffer = bytearray()  # Efficient byte buffer using bytearray
         self._serial_port.readyRead.connect(self.On_Data_Ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready
         self.Scan_Ports()  # 初始化时扫描串口
 
@@ -98,44 +97,13 @@ class mySerial(QObject):
             # Read all available bytes at once (more efficient than reading one by one)
             data = self._serial_port.readAll()
 
-            # 保证接收缓冲区不会超过设定大小
-            if len(self._receive_buffer) + data.size() > self.RXBUFFER_SIZE:
-                self._receive_buffer.clear()  # 清空缓冲区以防溢出
-            
             bytesData = data.data() # QByteArray to bytes
-            
-            # bytearray.extend() is highly optimized for appending bytes
-            self._receive_buffer.extend(bytesData)
+
             # 发送信号，通过信号将数据传递出去
             self.dataReceived.emit(bytesData)
             
             # print debug info
-            print(f"[mySerial] received {data.size()} bytes" , flush=True)
-
-    def read_buffer(self, size: int) -> bytes:
-        """
-        read and remove specified number of bytes from buffer
-        Args:
-            size: 
-                - n : specified number of bytes to read, 
-                - -1 : means read all
-        Returns:
-            bytes: read data
-        """
-        if size == -1 or size >= len(self._receive_buffer):
-            data = bytes(self._receive_buffer)
-            self._receive_buffer.clear()
-            return data
-        else:
-            data = bytes(self._receive_buffer[:size])
-            del self._receive_buffer[:size]  # Efficient deletion from bytearray
-            return data
-    
-    def clear_buffer(self) -> None:
-        self._receive_buffer.clear() # clear all
-    
-    def get_buffer_size(self) -> int:
-        return len(self._receive_buffer)
+            # print(f"[mySerial] Processing {len(bytesData)} bytes {bytesData}", flush=True)
 
 # Test the mySerial class
 if __name__ == "__main__":

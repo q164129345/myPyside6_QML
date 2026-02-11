@@ -5,7 +5,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 
 # 导入串口类
 from Basic.serial import mySerial
-
+from Basic.data_processor import DataProcessor
 
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
@@ -14,6 +14,13 @@ if __name__ == "__main__":
     # 创建串口后端对象
     serialBackend = mySerial()
     
+    # 创建数据处理对象
+    dataProcessor = DataProcessor()
+
+    # 连接串口接收数据的信号到数据处理槽函数
+    serialBackend.dataReceived.connect(dataProcessor.process_data)
+
+
     # 暴露给QML
     engine.rootContext().setContextProperty("serialBackend", serialBackend)
 
