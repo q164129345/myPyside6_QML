@@ -217,12 +217,12 @@ if __name__ == "__main__":
     print("=== 纯函数式协议测试 ===\n")
     
     print("=== CRC16-MODBUS 测试 ===")
-    test_data = b'\x01\x05Hello'
+    test_data = b'\x01\x02\x03\x04\x05'
     crc = calculate_crc16(test_data)
     print(f"数据: {test_data.hex()}, CRC16: 0x{crc:04X}\n")
     
     print("=== 协议帧打包测试 ===")
-    packed = pack_frame(cmd=0x10, data=b'Hello')
+    packed = pack_frame(cmd=0x10, data=b'\x10\x11\x12\x13\x14')
     print(f"打包数据: {packed.hex(' ').upper()}")
     print(f"帧长度: {len(packed)} 字节（应为 {4 + 5 + 2}）\n")
     
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         cmd, data = result
         print(f"解包成功!")
         print(f"  cmd: 0x{cmd:02X}")
-        print(f"  data: {data.decode('ascii')}")
+        print(f"  data: {data.hex(' ').upper()}")
         print(f"  datalen: {len(data)}\n")
     else:
         print("解包失败\n")
