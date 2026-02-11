@@ -1,23 +1,25 @@
 import sys
 from typing import Dict, List
+from typing import Optional, Callable
 from PySide6.QtCore import QObject, Signal, Slot, Property
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
 
 class mySerial(QObject):
     
-    RXBUFFER_SIZE = 10240 # 接收缓冲区大小(预防内存不断增长，最终导致内存崩溃)
+    RXBUFFER_SIZE = 20 * 1024 # 20 KB（限制缓冲区的大小，防止内存不断增长导致崩溃）
     connectionStatusChanged = Signal(bool, str)
     isConnectedChanged = Signal()
     portsListChanged = Signal(list)  # 发射串口列表给QML
+    dataReceived = Signal(bytes)     # 发射接收到的数据给QML
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._serial_port = QSerialPort() # create serial port object
         self._is_connected = False
         self._ports_list = [] # available ports list
         self._receive_buffer = bytearray()  # Efficient byte buffer using bytearray
         self._serial_port.readyRead.connect(self.On_Data_Ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready
-        self.Scan_Ports()
+        self.Scan_Ports()  # 初始化时扫描串口
 
     @Property(bool, notify=isConnectedChanged)  # type: ignore
     def isConnected(self) -> bool:
@@ -85,7 +87,7 @@ class mySerial(QObject):
             print("[mySerial] Port closed", flush=True)
             self.connectionStatusChanged.emit(False, "Port closed")
 
-    def On_Data_Ready(self):
+    def On_Data_Ready(self) -> None:
         """
         Performance optimized: 
         - Uses readAll() to get all available bytes at once
@@ -104,8 +106,11 @@ class mySerial(QObject):
             # bytearray.extend() is highly optimized for appending bytes
             self._receive_buffer.extend(data.data())
             
+            # 发送信号，通过信号将数据传递出去
+            self.dataReceived.emit(data.data())
+            
             # print debug info
-            # print(f"[mySerial] received {data.size()} bytes" , flush=True)
+            print(f"[mySerial] received {data.size()} bytes" , flush=True)
 
     def read_buffer(self, size: int) -> bytes:
         """
