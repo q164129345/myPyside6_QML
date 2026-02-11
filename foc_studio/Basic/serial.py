@@ -102,12 +102,12 @@ class mySerial(QObject):
             if len(self._receive_buffer) + data.size() > self.RXBUFFER_SIZE:
                 self._receive_buffer.clear()  # 清空缓冲区以防溢出
             
-            # Convert QByteArray to bytes and extend the buffer
-            # bytearray.extend() is highly optimized for appending bytes
-            self._receive_buffer.extend(data.data())
+            bytesData = data.data() # QByteArray to bytes
             
+            # bytearray.extend() is highly optimized for appending bytes
+            self._receive_buffer.extend(bytesData)
             # 发送信号，通过信号将数据传递出去
-            self.dataReceived.emit(data.data())
+            self.dataReceived.emit(bytesData)
             
             # print debug info
             print(f"[mySerial] received {data.size()} bytes" , flush=True)
