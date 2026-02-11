@@ -9,6 +9,9 @@ Rectangle {
     
     // qmllint disable unqualified
 
+    // 串口波特率
+    readonly property int baudRate: 460800
+
     // 接收串口连接状态
     property bool isSerialConnected: false
     property var portListModel: []  // 存储串口列表
@@ -93,7 +96,7 @@ Rectangle {
                 enabled: !root.isSerialConnected && portComboBox.currentIndex >= 0
                 onClicked: {
                     var selectedPort = root.portListModel[portComboBox.currentIndex]
-                    serialBackend.openPort(selectedPort.portName, 460800)
+                    serialBackend.openPort(selectedPort.portName, root.baudRate)
                 }
             }
 
