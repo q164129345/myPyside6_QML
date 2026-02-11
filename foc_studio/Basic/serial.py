@@ -8,9 +8,9 @@ class mySerial(QObject):
     
     RXBUFFER_SIZE = 20 * 1024 # 20 KB（限制缓冲区的大小，防止内存不断增长导致崩溃）
     connectionStatusChanged = Signal(bool, str)
-    isConnectedChanged = Signal()
-    portsListChanged = Signal(list)  # 发射串口列表给QML
-    dataReceived = Signal(bytes)     # 发射接收到的数据给QML
+    isConnectedChanged = Signal()      # 连接状态变化信号（不带参数）  
+    portsListChanged = Signal(list)    # 发射串口列表给QML
+    dataReceived = Signal(bytes)       # 发射接收到的数据给QML
     
     def __init__(self) -> None:
         super().__init__()
