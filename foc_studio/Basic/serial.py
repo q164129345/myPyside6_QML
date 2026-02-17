@@ -8,7 +8,7 @@ class mySerial(QObject):
     connectionStatusChanged = Signal(bool, str)
     isConnectedChanged = Signal()      # 连接状态变化信号（不带参数）  
     portsListChanged = Signal(list)    # 发射串口列表给QML
-    dataReceived = Signal(bytes)       # 发射接收到的数据给QML
+    dataReceived = Signal(bytes)       # 发射接收到的数据
     
     def __init__(self) -> None:
         super().__init__()
