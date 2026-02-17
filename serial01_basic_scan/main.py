@@ -45,20 +45,25 @@ class SerialBackend(QObject):
         for port in available_ports:
             port_name = port.portName()
             
-            # 只处理COM口（Windows系统）
-            if not port_name.startswith("COM"):
-                print(f"[SerialBackend] 跳过非COM口: {port_name}")
+            # 跨平台串口过滤：排除已知的系统虚拟设备
+            # macOS: 排除 Bluetooth、debug-console、tty.* (避免与cu.*重复)
+            if port_name.startswith("tty."):  # macOS tty设备（与cu.*重复）
+                print(f"[SerialBackend] 跳过tty设备: {port_name}")
+                continue
+            if "Bluetooth" in port_name or "debug-console" in port_name:
+                print(f"[SerialBackend] 跳过系统设备: {port_name}")
                 continue
             
+            # 保留所有其他串口：COM*(Windows)、cu.*(macOS)、ttys*(虚拟)、ttyUSB*/ttyACM*(Linux)
             port_info = {
-                "portName": port_name,              # 端口名称（如 COM1, COM3）
+                "portName": port_name,              # 端口名称（如 COM1/cu.usbserial/ttys001）
                 "description": port.description(),  # 设备描述
             }
             
             self._ports_list.append(port_info)
             
             # 打印到控制台（调试用）
-            print(f"[SerialBackend] 发现COM口: {port_info['portName']} - {port_info['description']}")
+            print(f"[SerialBackend] 发现串口: {port_info['portName']} - {port_info['description']}")
         
         # 发射信号，通知QML更新界面
         self.statusChanged.emit(f"找到 {len(self._ports_list)} 个串口")
