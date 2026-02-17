@@ -41,7 +41,8 @@ class mySerial(QObject):
             self._ports_list.append({"portName": port_name, "description": port.description()})
             print(f"[mySerial] find: {port_name} - {port.description()}", flush=True)
 
-        print(f"[mySerial] scanning completed，{len(self._ports_list)} ports found", flush=True)
+        #print(f"[mySerial] scanning completed，{len(self._ports_list)} ports found", flush=True)
+        #print(f"[mySerial] Current ports list: {self._ports_list}", flush=True)
         self.portsListChanged.emit(self._ports_list)  # 发射串口列表给QML
 
     @Slot(str)
