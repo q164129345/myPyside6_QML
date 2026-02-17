@@ -5,6 +5,8 @@ import QtQuick.Controls
 // 导入QtQuick.Layouts模块，提供布局管理
 import QtQuick.Layouts
 
+// qmllint disable unqualified
+
 // 定义主窗口
 Window {
     width: 700
