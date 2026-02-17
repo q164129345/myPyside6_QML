@@ -8,17 +8,17 @@ class Backend(QObject):
 
     countChanged = Signal(int)  # 信号，值改变时触发
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._count = 0 # 内部变量
 
     # Property属性，暴露给QML
     @Property(int, notify=countChanged)
-    def count(self):
+    def count(self) -> int:
         return self._count
 
     @count.setter
-    def count(self, value):
+    def count(self, value: int):
         # 只有值改变时才触发信号
         if self._count != value:
             self._count = value
