@@ -86,6 +86,44 @@ Rectangle {
             }
         }
 
+        // 手动添加串口区域
+        RowLayout {
+            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+
+            Text {
+                text: "或手动输入："
+                font.pixelSize: 14
+                color: "#2c3e50"
+            }
+
+            TextField {
+                id: manualPortInput
+                width: 350
+                placeholderText: "例如: /dev/tty.usbserial-0001 或 /dev/ttys001"
+                enabled: !root.isSerialConnected
+                font.pixelSize: 13
+                
+                onAccepted: {
+                    if (text.trim() !== "") {
+                        serialBackend.addManualPort(text.trim())
+                        text = ""  // 清空输入框
+                    }
+                }
+            }
+
+            Button {
+                text: "添加"
+                enabled: !root.isSerialConnected && manualPortInput.text.trim() !== ""
+                onClicked: {
+                    if (manualPortInput.text.trim() !== "") {
+                        serialBackend.addManualPort(manualPortInput.text.trim())
+                        manualPortInput.text = ""  // 清空输入框
+                    }
+                }
+            }
+        }
+
         // 连接/断开按钮
         RowLayout {
             spacing: 10
@@ -124,9 +162,11 @@ Rectangle {
     
     // 初始化时获取串口列表
     Component.onCompleted: {
-        root.portListModel = serialBackend.portsList
-        if (serialBackend.portsList.length > 0) {
-            portComboBox.currentIndex = -1  // 不自动选择
+        if (serialBackend) {
+            root.portListModel = serialBackend.portsList
+            if (serialBackend.portsList.length > 0) {
+                portComboBox.currentIndex = -1  // 不自动选择
+            }
         }
     }
 }
