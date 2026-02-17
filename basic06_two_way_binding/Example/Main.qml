@@ -3,6 +3,8 @@ import QtQuick 2.15
 // 导入Qt控件模块，包含Button等界面控件
 import QtQuick.Controls 2.15
 
+// qmllint disable unqualified
+
 // 应用程序主窗口
 ApplicationWindow {
     visible: true          // 窗口可见
