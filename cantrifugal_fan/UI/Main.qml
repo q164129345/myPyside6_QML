@@ -123,35 +123,6 @@ ApplicationWindow {
                     }
                 }
 
-                // CAN 按钮
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-                    color: root.currentPage === "CAN" ? "#3498db" : "#34495e"
-                    radius: 5
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 5
-
-                        Text {
-                            text: "CAN"
-                            color: "white"
-                            font.pixelSize: 10
-                            font.bold: true
-                            anchors.horizontalCenter: parent.horizontalCenter
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.currentPage = "CAN"
-                        }
-                    }
-                }
-
                 // 占位符 - 将按钮推到顶部
                 Item {
                     Layout.fillHeight: true
