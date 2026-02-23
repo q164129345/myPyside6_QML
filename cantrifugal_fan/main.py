@@ -24,7 +24,7 @@ if __name__ == "__main__":
     engine.rootContext().setContextProperty("serialBackend", serialBackend)
 
     # 加载QML文件
-    engine.load("QMLFiles/Main.qml")
+    engine.load("UI/Main.qml")
     
     if not engine.rootObjects():
         sys.exit(-1)
