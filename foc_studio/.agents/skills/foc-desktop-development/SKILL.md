@@ -1,134 +1,233 @@
 ---
 name: foc-desktop-development
-description: Assist in building an industrial-grade FOC motor control desktop tuning tool using PySide6 and QML. Use this skill when designing MVVM architecture, implementing serial communication with incremental frame parsing, creating real-time waveform visualization, or applying FOC domain logic including current limits and fault handling.
+description: Assist in developing an industrial-grade PySide6 QML based FOC motor control desktop tool. Use this skill when working with serial communication, CRC16 frame parsing, MVVM architecture, real-time data processing, or motor control domain logic.
 ---
 
 # FOC Desktop Development Skill
 
 ## Instructions
 
-Follow strict engineering architecture principles when generating output.
-
-This system is an industrial motor control tuning tool,
+This project is an industrial motor control desktop tool,
 not a demo GUI application.
 
-All outputs must respect:
+All outputs must follow the actual project architecture
+and integrate with the existing modules:
 
-- MVVM architecture
-- Thread-safe communication
-- Deterministic protocol parsing
-- Industrial-grade fault handling
+- core.protocol
+- core.transport
+- core.service
+- ui (QML)
 
----
-
-## Technical Context
-
-Language:
-Python 3.11+
-
-Framework:
-PySide6
-
-UI:
-QML
-
-Architecture:
-MVVM
-
-Communication:
-QSerialPort with incremental bytearray parsing
-
-Thread Model:
-UI Thread + QThread worker
-
-No blocking calls allowed in UI thread.
+Generated code must be compatible with the current implementation.
 
 ---
 
-## Architecture Rules
+## Current Project Architecture
 
-Layer structure:
+Project structure:
 
-QML (View)
-→ ViewModel (Signal bridge)
-→ Service Layer
-→ Transport Layer
-→ Protocol Parser
+core/
+    protocol/
+        protocol_frame.py
+    transport/
+        serial.py
+    service/
+        data_processor.py
+ui/
+    QMLFiles/
 
-Rules:
+Entry point:
+main.py
 
-- UI must not contain business logic
-- ViewModel must not parse protocol frames
-- Transport layer must not access UI
-- Protocol parsing must be isolated
-- CRC verification is mandatory
+Signal chain:
 
----
-
-## FOC Domain Knowledge
-
-Control chain:
-
-Speed Loop → Current Loop → Voltage Vector → PWM
-
-Key parameters:
-
-- iq = torque-producing current
-- id = flux current (typically 0 in surface PMSM)
-- current_limit = soft clamp
-- over_current_threshold = fault trigger
-- Fault must be cleared by host command
-
-Protection behavior:
-
-If current > current_limit:
-    clamp output
-
-If current > over_current_threshold:
-    enter fault
-    disable PWM
-    wait for reset command
+QSerialPort
+    ↓
+mySerial.dataReceived (bytes)
+    ↓
+DataProcessor.process_data(bytes)
 
 ---
 
-## Communication Model
+## Communication Model (Actual Implementation)
+
+Protocol specification (implemented):
 
 Frame format:
 
-Header(2 bytes) | Cmd(1 byte) | Length(1 byte) | Payload | CRC8(1 byte)
+head1 head2 cmd datalen data[] crc16_h crc16_l
+0xAA  0xBB  1B  1B      N     1B      1B
 
-Parsing requirements:
+CRC16:
+- CRC16-MODBUS
+- Polynomial: 0x8005
+- Initial value: 0xFFFF
+- Big-endian storage
 
-- Validate header
-- Validate length
-- Verify CRC before processing
-- Drop malformed frames safely
-- Never assume full frame availability
+Frame parsing strategy:
+
+- Pure function design
+- No side effects
+- Incremental parsing using bytearray
+- Support sticky packets
+- CRC must be verified before accepting frame
+
+Refer to:
+core.protocol.protocol_frame
+
+Do not redesign protocol logic unless explicitly requested.
 
 ---
 
-## Output Requirements
+## Transport Layer Rules
 
-When generating code:
+Transport layer implementation:
 
-- Provide complete implementations
-- Include type hints
-- Include signal definitions
-- Include docstrings
-- No pseudocode
-- No partial implementation
-- No UI-thread blocking logic
-- No global state
+Class:
+core.transport.serial.mySerial
+
+Characteristics:
+
+- Uses QSerialPort
+- Emits dataReceived(bytes)
+- Does not parse protocol
+- No business logic inside transport
+- No UI access
+- Must remain lightweight
+
+Never move parsing logic into transport layer.
+
+---
+
+## Service Layer Rules
+
+Current service:
+
+core.service.data_processor.DataProcessor
+
+Characteristics:
+
+- QObject-based
+- Receives raw bytes
+- Business logic belongs here
+- Future protocol dispatching should be implemented here
+
+Rules:
+
+- Service layer may use protocol_frame functions
+- Service layer may manage internal bytearray buffer
+- Service layer must not directly manipulate UI
+- All UI interaction must use signals
+
+---
+
+## Architectural Constraints
+
+Strict layering:
+
+UI (QML)
+    ↓
+Backend QObject
+    ↓
+Service Layer
+    ↓
+Protocol Functions
+
+Rules:
+
+- No protocol parsing in QML
+- No blocking calls in UI thread
+- No global variables
+- No tight coupling between layers
+- No mixing of transport and business logic
+
+---
+
+## Data Processing Strategy
+
+When generating receive logic:
+
+- Maintain a persistent bytearray buffer in service layer
+- Append new bytes from serial
+- Call parse_frame_from_buffer()
+- Handle:
+    - valid frame
+    - discardable bytes
+    - insufficient data
+- Remove consumed bytes safely
+
+Never assume a full frame arrives in one read.
+
+---
+
+## FOC Domain Context
+
+This system is intended for FOC motor tuning.
+
+Control hierarchy:
+
+Speed Loop → Current Loop → Voltage Vector → PWM
+
+Typical parameters:
+
+- iq (torque current)
+- id (flux current)
+- speed
+- bus voltage
+- current_limit
+- over_current_threshold
+
+Protection logic must distinguish:
+
+- soft current clamp
+- hard fault state
+
+Fault state requires host reset command.
+
+---
+
+## Code Generation Rules
+
+When generating Python code:
+
+- Use type hints
+- Follow current module naming style
+- Keep protocol functions pure
+- Keep service logic stateful
+- Use Qt Signals for cross-layer communication
+- Avoid pseudocode
+- Provide full implementations
+
+When generating new modules:
+
+Place them inside:
+
+core/
+    protocol/
+    service/
+    transport/
+
+Do not create arbitrary new directories.
 
 ---
 
 ## Prohibited Behaviors
 
-- No mixing UI logic with parsing logic
-- No skipping CRC validation
-- No using sleep() in UI thread
-- No dynamic attribute injection
-- No direct transport access from QML
+- No CRC skipping
+- No protocol redesign without request
+- No UI-thread blocking logic
+- No parsing in QML
+- No global shared state
+- No dynamic monkey-patching
 
-This is production-level motor control software.
-Maintain deterministic and modular design at all times.
+---
+
+## Engineering Standard
+
+All generated output must reflect:
+
+- Deterministic behavior
+- Defensive programming
+- Embedded-system-grade rigor
+- Clean separation of concerns
+- Production-ready quality
