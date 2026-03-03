@@ -1,278 +1,262 @@
 """
-上下位机通讯协议帧处理模块（纯函数式设计）
+FOC 上下位机通讯协议帧处理模块
 
 协议格式：
     head1   head2   cmd     datalen data[]  crc16_h crc16_l
     0xAA    0xBB    1byte   1byte   N bytes 1byte   1byte
-    
-CRC16 校验范围：cmd + datalen + data
-CRC16 标准：CRC16-MODBUS（多项式0x8005，初值0xFFFF，大端序）
+
+CRC16 校验范围：cmd + datalen + data[]
+CRC16 规范：CRC16-MODBUS（多项式 0x8005，初值 0xFFFF，大端序输出）
+
+设计约束：
+    - 所有函数为纯函数（无状态、无副作用）
+    - 不持有也不修改缓冲区
+    - 格式非法或 CRC 校验失败时返回 None，不抛出运行时异常
+    - 支持增量解析（粘包、半包场景）
 """
 
+import struct
 from typing import Optional, Tuple
 
-# 协议常量
-FRAME_HEAD1 = 0xAA
-FRAME_HEAD2 = 0xBB
-MIN_FRAME_SIZE = 6  # head1 + head2 + cmd + datalen + crc16(2 bytes)
+# ── 协议常量 ──────────────────────────────────────────────────────────────────
+
+FRAME_HEAD1: int    = 0xAA
+FRAME_HEAD2: int    = 0xBB
+HEADER_SIZE: int    = 4     # head1 + head2 + cmd + datalen
+CRC_SIZE: int       = 2     # crc16_h + crc16_l
+MIN_FRAME_SIZE: int = HEADER_SIZE + CRC_SIZE   # 最小帧长（data 段为空时）
+MAX_DATA_SIZE: int  = 255
+
+# ── 类型别名 ──────────────────────────────────────────────────────────────────
+
+# 成功解帧后的载荷：(cmd, data)
+ParsedFrame = Tuple[int, bytes]
+
+# parse_frame_from_buffer 的返回语义：
+#   ((cmd, data), consumed)   ← 解析到一帧；consumed 为已消耗字节数
+#   (None, discard_count)     ← 无有效帧头；discard_count 为可安全丢弃的字节数
+#   None                      ← 数据不足；调用方保留缓冲区等待更多数据
+ParseResult = Optional[Tuple[Optional[ParsedFrame], int]]
+
+# ── CRC16-MODBUS 查表 ─────────────────────────────────────────────────────────
+
+def _build_crc16_table() -> Tuple[int, ...]:
+    """预生成 CRC16-MODBUS 查找表（256 项，LSB-first，多项式 0x8005）。"""
+    poly = 0x8005
+    table: list[int] = []
+    for i in range(256):
+        crc = i
+        for _ in range(8):
+            crc = (crc >> 1) ^ poly if crc & 0x0001 else crc >> 1
+        table.append(crc & 0xFFFF)
+    return tuple(table)
+
+_CRC16_TABLE: Tuple[int, ...] = _build_crc16_table()
 
 
 def calculate_crc16(data: bytes) -> int:
     """
-    计算 CRC16 校验值 (CRC16-MODBUS)
-    
-    多项式: 0x8005 (x^16 + x^15 + x^2 + 1)
-    初始值: 0xFFFF
-    
+    计算 CRC16-MODBUS 校验值（查表法）。
+
+    规范：多项式 0x8005，初值 0xFFFF，LSB-first，大端序存储。
+
     Args:
-        data: 待校验的字节数据
-    
+        data: 待校验字节序列。
+
     Returns:
-        CRC16 校验值 (0-65535)
+        16 位无符号整数校验值（范围 0x0000 ~ 0xFFFF）。
     """
     crc = 0xFFFF
-    polynomial = 0x8005
-    
     for byte in data:
-        crc ^= byte
-        for _ in range(8):
-            if crc & 0x0001:
-                crc = (crc >> 1) ^ polynomial
-            else:
-                crc = crc >> 1
-    
-    return crc & 0xFFFF  # 保持在 16 位范围内
+        crc = (crc >> 8) ^ _CRC16_TABLE[(crc ^ byte) & 0xFF]
+    return crc & 0xFFFF
 
+
+# ── 帧构造 ────────────────────────────────────────────────────────────────────
 
 def pack_frame(cmd: int, data: bytes = b'') -> bytes:
     """
-    将命令和数据打包成协议帧
-    
+    将命令字和数据段打包为完整协议帧。
+
     Args:
-        cmd: 命令字 (0-255)
-        data: 数据段，默认为空 (最大255字节)
-    
+        cmd:  命令字，范围 [0, 255]。
+        data: 数据段，最大 255 字节，默认为空。
+
     Returns:
-        打包后的完整帧字节序列
-        
+        完整帧字节序列（head1 head2 cmd datalen data[] crc16_h crc16_l）。
+
     Raises:
-        ValueError: 如果 cmd 或 data 参数超出范围
-        
+        ValueError: cmd 或 data 超出允许范围。
+
     Example:
-        >>> frame = pack_frame(0x10, b'Hello')
+        >>> frame = pack_frame(0x10, bytes([0x10, 0x11, 0x12, 0x13, 0x14]))
         >>> frame.hex(' ').upper()
-        'AA BB 10 05 48 65 6C 6C 6F 16 99'
+        'AA BB 10 05 10 11 12 13 14 B6 A4'
     """
     if not (0 <= cmd <= 255):
-        raise ValueError(f"cmd must be 0-255, got {cmd}")
-    
-    if len(data) > 255:
-        raise ValueError(f"data length must be 0-255, got {len(data)}")
-    
+        raise ValueError(f"cmd 超出范围 [0, 255]，当前值: {cmd}")
+    if len(data) > MAX_DATA_SIZE:
+        raise ValueError(f"data 超出最大长度 {MAX_DATA_SIZE}，当前长度: {len(data)}")
+
     datalen = len(data)
-    
-    # 计算 CRC16
-    crc_data = bytes([cmd, datalen]) + data
-    crc16 = calculate_crc16(crc_data)
-    
-    # CRC16 大端序：高字节在前，低字节在后
-    crc_high = (crc16 >> 8) & 0xFF
-    crc_low = crc16 & 0xFF
-    
-    # 组装完整帧
-    frame = bytes([
-        FRAME_HEAD1,
-        FRAME_HEAD2,
-        cmd,
-        datalen
-    ]) + data + bytes([crc_high, crc_low])
-    
-    return frame
+    crc_payload = struct.pack('BB', cmd, datalen) + data
+    crc16 = calculate_crc16(crc_payload)
+
+    return (
+        struct.pack('>BBBB', FRAME_HEAD1, FRAME_HEAD2, cmd, datalen)
+        + data
+        + struct.pack('>H', crc16)
+    )
 
 
-def unpack_frame(buffer: bytes) -> Optional[Tuple[int, bytes]]:
+# ── 帧解析 ────────────────────────────────────────────────────────────────────
+
+def unpack_frame(frame: bytes) -> Optional[ParsedFrame]:
     """
-    从字节序列解包协议帧
-    
+    解析一段完整协议帧字节序列。
+
+    调用方负责传入完整帧（不含前缀垃圾数据）。
+    CRC 验证失败或格式非法时返回 None，不抛出异常。
+
     Args:
-        buffer: 包含完整帧的字节数据
-    
+        frame: 完整帧字节序列，至少 MIN_FRAME_SIZE 字节。
+
     Returns:
-        成功: (cmd, data) 元组
-        失败: None (帧格式错误或 CRC16 校验失败)
-        
-    Example:
-        >>> frame = pack_frame(0x10, b'Hello')
-        >>> cmd, data = unpack_frame(frame)
-        >>> f"cmd=0x{cmd:02X}, data={data.decode('ascii')}"
-        'cmd=0x10, data=Hello'
+        成功: (cmd, data) 元组。
+        失败: None。
     """
-    if len(buffer) < MIN_FRAME_SIZE:
+    if len(frame) < MIN_FRAME_SIZE:
         return None
-    
-    # 检查帧头
-    if buffer[0] != FRAME_HEAD1 or buffer[1] != FRAME_HEAD2:
+
+    if frame[0] != FRAME_HEAD1 or frame[1] != FRAME_HEAD2:
         return None
-    
-    cmd = buffer[2]
-    datalen = buffer[3]
-    
-    # 检查数据长度是否足够
-    expected_frame_size = 6 + datalen  # head1 + head2 + cmd + datalen + data + crc16(2 bytes)
-    if len(buffer) < expected_frame_size:
+
+    cmd: int     = frame[2]
+    datalen: int = frame[3]
+    frame_size   = HEADER_SIZE + datalen + CRC_SIZE
+
+    if len(frame) < frame_size:
         return None
-    
-    # 提取数据段和 CRC16（大端序）
-    data = buffer[4:4+datalen]
-    crc_high = buffer[4+datalen]
-    crc_low = buffer[5+datalen]
-    received_crc = (crc_high << 8) | crc_low
-    
-    # 验证 CRC16
-    crc_data = bytes([cmd, datalen]) + data
-    calculated_crc = calculate_crc16(crc_data)
-    
-    if calculated_crc != received_crc:
-        return None  # CRC16 校验失败
-    
+
+    data         = frame[4: 4 + datalen]
+    (recv_crc,)  = struct.unpack_from('>H', frame, 4 + datalen)
+    crc_payload  = struct.pack('BB', cmd, datalen) + data
+
+    if calculate_crc16(crc_payload) != recv_crc:
+        return None
+
     return (cmd, data)
 
 
-def parse_frame_from_buffer(buffer: bytearray) -> Optional[Tuple[Optional[Tuple[int, bytes]], int]]:
+def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
     """
-    从缓冲区中解析一个完整的协议帧
-    
-    该函数会在缓冲区中搜索帧头，尝试解析完整帧。
-    支持处理粘包和无效数据。
-    
-    Args:
-        buffer: 接收缓冲区（bytearray）
-    
-    Returns:
-        成功解析: ((cmd, data), consumed_bytes) - 解析出的命令和数据，以及消耗的字节数
-        未找到有效帧: (None, bytes_to_discard) - 可丢弃的无效字节数
-        数据不足: None - 等待更多数据
-        
-    Example:
-        >>> frame = pack_frame(0x10, b'Hello')
-        >>> buffer = bytearray(b'\\x00\\x11' + frame + b'\\x22')
-        >>> result = parse_frame_from_buffer(buffer)
-        >>> if result:
-        ...     frame_data, consumed = result
-        ...     if frame_data:
-        ...         cmd, data = frame_data
-        ...         print(f"cmd=0x{cmd:02X}, consumed={consumed}")
-        cmd=0x10, consumed=13
-    """
-    if len(buffer) < MIN_FRAME_SIZE:
-        return None
-    
-    # 查找帧头
-    for i in range(len(buffer) - 1):
-        if buffer[i] == FRAME_HEAD1 and buffer[i+1] == FRAME_HEAD2:
-            # 找到帧头，尝试解析
-            if i + MIN_FRAME_SIZE > len(buffer):
-                # 数据不足，等待更多数据
-                return None
-            
-            cmd = buffer[i+2]
-            datalen = buffer[i+3]
-            expected_frame_size = 6 + datalen  # 包含2字节CRC16
-            
-            if i + expected_frame_size > len(buffer):
-                # 数据段不完整，等待更多数据
-                return None
-            
-            # 提取完整帧数据
-            frame_data = bytes(buffer[i:i+expected_frame_size])
-            
-            # 尝试解析
-            result = unpack_frame(frame_data)
-            
-            if result is not None:
-                # 解析成功，返回(cmd, data)和已消耗字节数
-                consumed = i + expected_frame_size
-                return (result, consumed)
-            else:
-                # CRC 校验失败或格式错误，跳过这个帧头，继续搜索
-                continue
-    
-    # 没有找到有效帧
-    # 如果缓冲区中有单个 0xAA 但后面不是 0xBB，保留它等待更多数据
-    if buffer[-1] == FRAME_HEAD1:
-        return None
-    
-    # 清除无效数据（保留最后可能的帧头）
-    for i in range(len(buffer) - 1, -1, -1):
-        if buffer[i] == FRAME_HEAD1:
-            # 保留从这里开始的数据
-            return (None, i) if i > 0 else None
-    
-    # 没有任何可能的帧头，可以清空缓冲区
-    return (None, len(buffer)) if len(buffer) > 0 else None
+    从接收缓冲区中尝试解析一个完整协议帧（增量解析）。
 
+    调用方应在每次收到新字节后循环调用此函数，直到返回 None 为止。
+    此函数不修改缓冲区，由调用方根据返回值决定如何清理。
+
+    返回语义：
+        ((cmd, data), consumed)  → 解析到一帧，执行 del buffer[:consumed]
+        (None, discard_count)    → 无有效帧头，执行 del buffer[:discard_count]
+        None                     → 数据不足，保留缓冲区等待更多数据
+
+    Args:
+        buffer: 接收缓冲区（只读，本函数不会修改它）。
+
+    Returns:
+        ParseResult（见上方语义说明）。
+
+    Service 层调用示范：
+        while True:
+            result = parse_frame_from_buffer(self._buffer)
+            if result is None:
+                break                           # 等待更多数据
+            frame_data, consumed = result
+            del self._buffer[:consumed]
+            if frame_data:
+                cmd, data = frame_data
+                self._dispatch(cmd, data)       # 分发给业务逻辑
+    """
+    buf_len = len(buffer)
+    if buf_len < MIN_FRAME_SIZE:
+        return None
+
+    i = 0
+    while i < buf_len - 1:
+
+        # ── 搜索帧头 ────────────────────────────────────────────────────────
+        if buffer[i] != FRAME_HEAD1 or buffer[i + 1] != FRAME_HEAD2:
+            i += 1
+            continue
+
+        # ── 帧头已找到（位于偏移 i） ─────────────────────────────────────────
+        # header 字段不完整：等待更多数据；若 i>0 先通知丢弃前导垃圾字节
+        if i + HEADER_SIZE > buf_len:
+            return (None, i) if i > 0 else None
+
+        datalen   = buffer[i + 3]
+        frame_end = i + HEADER_SIZE + datalen + CRC_SIZE
+
+        # 数据段或 CRC 不完整：等待更多数据
+        if frame_end > buf_len:
+            return (None, i) if i > 0 else None
+
+        # ── 尝试解析完整帧 ───────────────────────────────────────────────────
+        parsed = unpack_frame(bytes(buffer[i:frame_end]))
+        if parsed is not None:
+            return (parsed, frame_end)
+
+        # CRC 校验失败：此 0xAA 不是有效帧头，向后移动一字节继续搜索
+        i += 1
+
+    # ── 全缓冲区搜索完毕，未找到可成功解码的帧 ──────────────────────────────
+    # 保留最后一个 0xAA 及其之后的字节（可能是下一帧起始）
+    for j in range(buf_len - 1, -1, -1):
+        if buffer[j] == FRAME_HEAD1:
+            return (None, j) if j > 0 else None
+
+    # 缓冲区内没有任何 0xAA，全部可安全丢弃
+    return (None, buf_len)
+
+
+# ── 自测 ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # 测试代码
-    print("=== 纯函数式协议测试 ===\n")
-    
-    print("=== CRC16-MODBUS 测试 ===")
+    print("=== protocol_frame 自测 ===\n")
+
+    # CRC16-MODBUS
+    print("[1] CRC16-MODBUS")
     test_data = b'\x01\x02\x03\x04\x05'
     crc = calculate_crc16(test_data)
-    print(f"数据: {test_data.hex()}, CRC16: 0x{crc:04X}\n")
-    
-    print("=== 协议帧打包测试 ===")
+    print(f"    数据: {test_data.hex(' ').upper()}  CRC16: 0x{crc:04X}\n")
+
+    # 打包
+    print("[2] pack_frame")
     packed = pack_frame(cmd=0x10, data=b'\x10\x11\x12\x13\x14')
-    print(f"打包数据: {packed.hex(' ').upper()}")
-    print(f"帧长度: {len(packed)} 字节（应为 {4 + 5 + 2}）\n")
-    
-    print("=== 协议帧解包测试 ===")
+    print(f"    帧: {packed.hex(' ').upper()}  长度: {len(packed)} 字节\n")
+
+    # 解包
+    print("[3] unpack_frame")
     result = unpack_frame(packed)
-    if result:
-        cmd, data = result
-        print(f"解包成功!")
-        print(f"  cmd: 0x{cmd:02X}")
-        print(f"  data: {data.hex(' ').upper()}")
-        print(f"  datalen: {len(data)}\n")
-    else:
-        print("解包失败\n")
-    
-    print("=== CRC16校验失败测试 ===")
-    # 故意修改CRC制造校验失败
-    bad_packed = packed[:-2] + b'\xFF\xFF'
-    bad_result = unpack_frame(bad_packed)
-    if bad_result:
-        print("错误：应该校验失败但成功了\n")
-    else:
-        print("CRC16校验失败处理正确（预期行为）\n")
-    
-    print("=== 缓冲区解析测试（粘包） ===")
-    buffer = bytearray(b'\x00\x11\x22' + packed + b'\x33\x44')
-    print(f"缓冲区: {buffer.hex(' ').upper()}")
-    result = parse_frame_from_buffer(buffer)
-    if result:
-        parsed_data, consumed = result
-        if parsed_data:
-            cmd, data = parsed_data
-            print(f"解析成功!")
-            print(f"  cmd: 0x{cmd:02X}")
-            print(f"  data: {data.decode('ascii')}")
-            print(f"  消耗字节: {consumed}\n")
-        else:
-            print(f"未找到有效帧，可丢弃字节: {consumed}\n")
-    else:
-        print("缓冲区数据不足\n")
-    
-    print("=== 使用示例 ===")
-    print("# 发送数据")
-    print("frame_bytes = pack_frame(0x01, b'Test')")
-    print("serial.write(frame_bytes)")
-    print()
-    print("# 接收数据")
-    print("result = parse_frame_from_buffer(recv_buffer)")
-    print("if result:")
-    print("    frame_data, consumed = result")
-    print("    if frame_data:")
-    print("        cmd, data = frame_data")
-    print("        print(f'收到命令: 0x{cmd:02X}, 数据: {data}')")
-    print("        del recv_buffer[:consumed]  # 清理已处理数据")
+    assert result is not None
+    cmd, data = result
+    print(f"    cmd: 0x{cmd:02X}  data: {data.hex(' ').upper()}\n")
+
+    # CRC 校验失败
+    print("[4] CRC 校验失败检测")
+    bad = packed[:-2] + b'\xFF\xFF'
+    assert unpack_frame(bad) is None
+    print("    正确拒绝（预期行为）\n")
+
+    # 粘包解析
+    print("[5] parse_frame_from_buffer（粘包）")
+    buf = bytearray(b'\x00\x11\x22') + bytearray(packed) + bytearray(b'\x33\x44')
+    print(f"    缓冲区: {buf.hex(' ').upper()}")
+    res = parse_frame_from_buffer(buf)
+    assert res is not None
+    frame_data, consumed = res
+    assert frame_data is not None
+    cmd2, data2 = frame_data
+    print(f"    cmd: 0x{cmd2:02X}  data: {data2.hex(' ').upper()}  consumed: {consumed}\n")
+
+    print("所有自测通过。")
