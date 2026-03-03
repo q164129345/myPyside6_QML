@@ -72,12 +72,11 @@ Rules:
 - No buffer ownership(不拥有缓冲区)
 - No side effects(无副作用)
 - CRC must be verified before accepting frame(必须验证CRC)
-- Must support incremental parsing(必须支持增量解析)
+- Must support incremental parsing(必须支持增量解析,适应粘包和半包)
 
 It is strictly responsible for:
 1. Frame construction (encode)
-2. CRC validation
-3. Single-frame parsing attempt from a buffer (decode attempt)
+2. Single-frame parsing attempt from a buffer (decode attempt)
 
 The protocol layer MUST NOT:
 - Store or manage buffers
@@ -102,9 +101,8 @@ Characteristics:
 - Emits: dataReceived(bytes)
 - No protocol parsing
 - No business logic
-- No UI access
 - Lightweight only
-
+- 
 Transport is byte carrier only.
 
 Never move parsing logic into transport.
