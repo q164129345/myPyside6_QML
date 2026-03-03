@@ -6,7 +6,6 @@ class DataProcessor(QObject):
     """
     def __init__(self):
         super().__init__()
-        self._processed_data = bytearray()
 
     @Slot(bytes)
     def process_data(self, data: bytes) -> None:

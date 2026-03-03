@@ -4,8 +4,8 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 # 导入串口类
-from Basic.serial import mySerial
-from Basic.data_processor import DataProcessor
+from core.transport.serial import mySerial
+from core.service.data_processor import DataProcessor
 
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     engine.rootContext().setContextProperty("serialBackend", serialBackend)
 
     # 加载QML文件
-    engine.load("QMLFiles/Main.qml")
+    engine.load("ui/QMLFiles/Main.qml")
     
     if not engine.rootObjects():
         sys.exit(-1)
