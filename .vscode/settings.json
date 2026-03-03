@@ -6,4 +6,7 @@
             "packageManager": "ms-python.python:pip"
         }
     ],
+    "chat.agentSkillsLocations": {
+        "foc_studio/.agents/skills": true
+    },
 }
