@@ -3,7 +3,7 @@ name: foc-desktop-development
 description: Assist in developing an industrial-grade PySide6 QML based FOC motor control desktop tool. Focus on motor command control and real-time telemetry visualization. OTA is not included in this phase.
 ---
 
-# FOC Desktop Development Skill (Phase 1)
+# 1 - FOC Desktop Development Skill (Phase 1)
 
 ## Project Positioning
 
@@ -21,7 +21,49 @@ It IS:
 
 ---
 
-# Primary Objectives (Phase 1)
+# 2 - Backend Communication Model
+
+## Rule: All QObject-based modules must communicate via Qt Signals/Slots.
+Applies to:
+- Transport Layer
+- Service Layer
+- Backend Facade
+
+Does NOT apply to:
+- Protocol Layer (pure functions only)
+
+## Signal-Driven Architecture
+Backend modules must follow:
+Event-driven model, not direct method coupling.
+Prohibited:
+- Service directly calling transport.write()
+- Transport directly calling service method
+- Cross-module method calls after initialization
+
+Allowed:
+- Signal → Slot connections only
+
+Example:
+Transport.dataReceived → Service.onBytesReceived
+Service.speedUpdated → BackendFacade.speedUpdated
+BackendFacade.speedUpdated → QML
+
+## Threading Rule
+- All signals must be Qt-safe
+- No blocking operations
+- If heavy computation is added later → move to worker thread
+
+## Strict Ownership Model
+- Transport owns QSerialPort
+- Service owns buffer
+- Protocol owns nothing
+- BackendFacade owns service instances
+
+No shared mutable objects across layers.
+
+---
+
+# 3 - Primary Objectives (Phase 1)
 
 The system must support:
 
@@ -34,7 +76,7 @@ OTA upgrade is NOT included in this phase.
 
 ---
 
-# Current Project Architecture
+# 4 - Current Project Architecture
 
 All outputs must strictly integrate into:
 
@@ -49,7 +91,7 @@ No new top-level directories allowed.
 
 ---
 
-# Protocol Layer
+# 5 - Protocol Layer
 
 Location:
 core.protocol.protocol_frame
@@ -90,7 +132,7 @@ All functions must be pure and side-effect free.
 
 ---
 
-# Transport Layer
+# 6 - Transport Layer
 
 Location:
 core.transport.serial.mySerial
@@ -109,7 +151,7 @@ Never move parsing logic into transport.
 
 ---
 
-# Service Layer
+# 7 - Service Layer
 
 Location:
 core.service.data_processor.DataProcessor
@@ -139,7 +181,7 @@ Service layer must NOT:
 
 ---
 
-# Data Processing Strategy
+# 8 - Data Processing Strategy
 
 When implementing receive logic:
 
@@ -167,7 +209,7 @@ Must support:
 
 ---
 
-# FOC Domain Context
+# 9 - FOC Domain Context
 
 This desktop tool interacts with a FOC motor controller.
 
@@ -199,7 +241,7 @@ Service layer must clearly distinguish between these states.
 
 ---
 
-# UI Interaction Rules
+# 10 - UI Interaction Rules
 
 Architecture:
 
@@ -221,7 +263,7 @@ Rules:
 
 ---
 
-# Required Signal Design (Example)
+# 11 - Required Signal Design (Example)
 
 Service layer should emit signals like:
 
@@ -238,7 +280,7 @@ Avoid sending raw frame data to UI.
 
 ---
 
-# Command Sending Rules
+# 12 - Command Sending Rules
 
 When sending control commands:
 
@@ -259,7 +301,7 @@ Example control types:
 
 ---
 
-# Engineering Standards
+# 13 - Engineering Standards
 
 All generated code must reflect:
 
@@ -272,7 +314,7 @@ All generated code must reflect:
 
 ---
 
-# Prohibited Behaviors
+# 14 - Prohibited Behaviors
 
 - No CRC skipping
 - No protocol redesign
@@ -284,7 +326,7 @@ All generated code must reflect:
 
 ---
 
-# Phase Boundary
+# 15 - Phase Boundary
 
 This version of the project does NOT include:
 
