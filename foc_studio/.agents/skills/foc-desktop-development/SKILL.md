@@ -49,15 +49,15 @@ Service.speedUpdated → BackendFacade.speedUpdated
 BackendFacade.speedUpdated → QML
 
 ## Threading Rule（线程规则）
-- All signals must be Qt-safe
-- No blocking operations
-- If heavy computation is added later → move to worker thread
+- All signals must be Qt-safe（所有信号必须是 Qt 安全的）
+- No blocking operations（无阻塞操作）
+- If heavy computation is added later → move to worker thread（如果以后增加重计算 → 移动到工作线程）
 
 ## Strict Ownership Model（严格的所有权模型）
-- Transport owns QSerialPort
-- Service owns buffer
-- Protocol owns nothing
-- BackendFacade owns service instances
+- Transport owns QSerialPort（Transport 拥有 QSerialPort）
+- Service owns buffer（Service 拥有缓冲区）
+- Protocol owns nothing（协议层不拥有任何资源）
+- BackendFacade owns service instances（BackendFacade 拥有服务实例）
 
 No shared mutable objects across layers.
 
@@ -66,20 +66,20 @@ No shared mutable objects across layers.
 # 3 - Primary Objectives (Phase 1)（主要目标）
 
 The system must support:
+1. Sending structured motor control commands（发送结构化电机控制命令）
+    - UI → BackendFacade → Service → Transport
+    - UI must never access transport directly.
+2. Receiving and decoding FOC telemetry frames（接收并解码 FOC 遥测帧）
+3. Real-time UI visualization of motor state（电机状态的实时 UI 可视化）
+4. Deterministic fault state handling（确定性故障状态处理）
 
-1. Sending structured motor control commands
-2. Receiving and decoding FOC telemetry frames
-3. Real-time UI visualization of motor state
-4. Deterministic fault state handling
-
-OTA upgrade is NOT included in this phase.
+OTA upgrade is NOT included in this phase.（OTA 升级不包含在此阶段）
 
 ---
 
 # 4 - Current Project Architecture（当前项目架构）
 
 All outputs must strictly integrate into:
-
 core/
     protocol/
     transport/
@@ -107,7 +107,6 @@ CRC:
 - Big-endian storage
 
 Rules:
-
 - All protocol functions must be pure（纯函数）
 - No QObject usage（不依赖Qt特性）
 - No state（无状态）
@@ -118,7 +117,7 @@ Rules:
 
 It is strictly responsible for:
 1. Frame construction (encode)
-2. Single-frame parsing attempt from a buffer (decode attempt)
+2. attempt_parse_frame(data: bytes)
 
 The protocol layer MUST NOT:
 - Store or manage buffers
@@ -138,16 +137,14 @@ Location:
 core.transport.serial.mySerial
 
 Characteristics:
+- Uses QSerialPort（使用 QSerialPort，串口通讯时）
+- Emits: dataReceived(bytes)（发出：dataReceived(bytes)）
+- No protocol parsing（不进行协议解析）
+- No business logic（不进行业务逻辑处理）
+- Lightweight only（仅轻量级）
+Transport is byte carrier only.（传输层仅负责字节传输）
 
-- Uses QSerialPort
-- Emits: dataReceived(bytes)
-- No protocol parsing
-- No business logic
-- Lightweight only
-- 
-Transport is byte carrier only.
-
-Never move parsing logic into transport.
+Never move parsing logic into transport.（切勿将解析逻辑移动到传输层）
 
 ---
 
@@ -156,35 +153,36 @@ Never move parsing logic into transport.
 Location:
 core.service.data_processor.DataProcessor
 
-Responsibilities:
-
-- Maintain persistent bytearray buffer
-- Append incoming bytes
-- Call protocol parsing function
-- Handle:
-    - valid frame
-    - discardable bytes
-    - insufficient data
-- Remove consumed bytes safely
-- Dispatch parsed data via Qt signals
+Responsibilities:（责任）
+- Maintain persistent bytearray buffer（持久化字节数组缓冲区）
+- Append incoming bytes（追加接收字节）
+- Call protocol parsing function（调用协议解析函数）
+- Handle:（处理）
+    - valid frame（有效帧）
+    - discardable bytes（可丢弃字节）
+    - insufficient data（数据不足）
+- Remove consumed bytes safely（安全移除已消耗字节）
+- Dispatch parsed data via Qt signals（通过 Qt 信号分发解析后的数据）
 
 Service layer is:
-
-- Stateful
-- Deterministic
-- Thread-safe (UI thread safe, no blocking)
+- Stateful（有状态）
+- Deterministic（确定性）
+- Thread-safe (UI thread safe, no blocking)（线程安全，UI 线程安全，无阻塞）
+- Business logic only（仅业务逻辑）
+- Signal provider for UI（UI数据提供者）
+- State manager（状态管理者）
 
 Service layer must NOT:
-- Access QML directly
-- Perform blocking operations
-- Modify transport logic
+- Direct function calls are prohibited between them（之间禁止直接函数调用）
+   - Use: Service -> BackendFacade -> Service
+- Perform blocking operations（执行阻塞操作）
+- Modify transport logic（修改传输逻辑）
 
 ---
 
 # 8 - Data Processing Strategy（数据处理策略）
 
 When implementing receive logic:
-
 1. Maintain:
    self._buffer: bytearray
 
@@ -200,141 +198,9 @@ When implementing receive logic:
        - if invalid header:
              discard one byte and continue
 
-Never assume full frame arrives in one read.
+Never assume full frame arrives in one read.（切勿假设完整帧在一次读取中到达）
 
 Must support:
-- Sticky packets
-- Partial packets
-- Multiple frames in one read
-
----
-
-# 9 - FOC Domain Context（FOC领域上下文）
-
-This desktop tool interacts with a FOC motor controller.
-
-Control hierarchy:
-
-Speed Loop → Current Loop → Voltage Vector → PWM
-
-Typical runtime telemetry:
-
-- speed (rpm)
-- iq (A)
-- id (A)
-- bus voltage (V)
-- temperature (°C)
-- current_limit clamp status
-- hard fault state
-- driver fault flags
-
-Protection types:
-
-Soft clamp:
-- Current limited but system running
-
-Hard fault:
-- Motor disabled
-- Requires host reset command
-
-Service layer must clearly distinguish between these states.
-
----
-
-# 10 - UI Interaction Rules（UI交互规则）
-
-Architecture:
-
-UI (QML)
-    ↓
-Backend QObject
-    ↓
-Service Layer
-    ↓
-Protocol Functions
-
-Rules:
-
-- No protocol parsing in QML
-- No bytearray in QML
-- No blocking calls in UI thread
-- UI receives data only via Qt Signals
-- UI must treat backend as data provider only
-
----
-
-# 11 - Required Signal Design (Example)（必需的信号设计示例）
-
-Service layer should emit signals like:
-
-speedUpdated(float)
-currentUpdated(float iq, float id)
-voltageUpdated(float)
-temperatureUpdated(float)
-faultUpdated(int)
-clampStateUpdated(bool)
-
-Signals must be granular and deterministic.
-
-Avoid sending raw frame data to UI.
-
----
-
-# 12 - Command Sending Rules（命令发送规则）
-
-When sending control commands:
-
-- Must use protocol_frame to build frame
-- Must send through transport layer
-- Must validate parameter range before sending
-- Must never send malformed frame
-- Must handle error responses
-
-Example control types:
-
-- enable motor
-- disable motor
-- set speed
-- set iq
-- set current_limit
-- clear fault
-
----
-
-# 13 - Engineering Standards（工程标准）
-
-All generated code must reflect:
-
-- Deterministic behavior
-- Defensive programming
-- Clear separation of concerns
-- No hidden side effects
-- Embedded-system-grade rigor
-- Production-ready quality
-
----
-
-# 14 - Prohibited Behaviors（禁止行为）
-
-- No CRC skipping
-- No protocol redesign
-- No parsing in QML
-- No global variables
-- No dynamic monkey-patching
-- No blocking operations in UI thread
-- No mixing of transport and business logic
-
----
-
-# 15 - Phase Boundary（阶段边界）
-
-This version of the project does NOT include:
-
-- OTA firmware upgrade
-- File transfer
-- Multi-device management
-- Network support
-
-Focus only on:
-
-Reliable motor control + Stable real-time telemetry visualization.
+- Sticky packets（粘包）
+- Partial packets（半包）
+- Multiple frames in one read（一次读取多个帧）
