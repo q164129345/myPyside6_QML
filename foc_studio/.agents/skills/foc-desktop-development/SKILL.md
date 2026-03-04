@@ -87,8 +87,43 @@ core/
 ui/
     QMLFiles/
 
-No new top-level directories allowed.
+## Architecture Overview(架构概览)
+System layered architecture:
+        QML UI
+           │
+           ▼
+     BackendFacade
+           │
+           ▼
+        Service
+           │
+           ▼
+       Transport
+           │
+           ▼
+        Protocol
 
+Responsibilities:
+UI
+- User interaction
+- Visualization only
+BackendFacade
+- System coordinator
+- Exposes API to UI
+- Connects backend modules
+Service
+- Business logic
+- Frame dispatch
+- State management
+Transport
+- Byte transport only
+- Serial communication
+Protocol
+- Pure functions
+- Frame encode/decode
+
+No new top-level directories allowed.（不允许新的顶级目录）
+For full architecture details see: ./Architecture.md （详细架构请参考：./Architecture.md）
 ---
 
 # 5 - Protocol Layer（协议层）
