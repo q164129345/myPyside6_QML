@@ -3,9 +3,9 @@ name: foc-desktop-development
 description: Assist in developing an industrial-grade PySide6 QML based FOC motor control desktop tool. Focus on motor command control and real-time telemetry visualization. OTA is not included in this phase.
 ---
 
-# 1 - FOC Desktop Development Skill (Phase 1)
+# 1 - FOC Desktop Development Skill (Phase 1) （FOC桌面开发目标（阶段1））
 
-## Project Positioning
+## Project Positioning（项目定位）
 
 This project is an industrial FOC motor tuning and monitoring platform.
 
@@ -21,9 +21,9 @@ It IS:
 
 ---
 
-# 2 - Backend Communication Model
+# 2 - Backend Communication Model（后端通信模型）
 
-## Rule: All QObject-based modules must communicate via Qt Signals/Slots.
+## Rule: All QObject-based modules must communicate via Qt Signals/Slots.（所有QObject模块必须通过Qt信号/槽进行通信）
 Applies to:
 - Transport Layer
 - Service Layer
@@ -32,7 +32,7 @@ Applies to:
 Does NOT apply to:
 - Protocol Layer (pure functions only)
 
-## Signal-Driven Architecture
+## Signal-Driven Architecture（信号驱动架构）
 Backend modules must follow:
 Event-driven model, not direct method coupling.
 Prohibited:
@@ -48,12 +48,12 @@ Transport.dataReceived → Service.onBytesReceived
 Service.speedUpdated → BackendFacade.speedUpdated
 BackendFacade.speedUpdated → QML
 
-## Threading Rule
+## Threading Rule（线程规则）
 - All signals must be Qt-safe
 - No blocking operations
 - If heavy computation is added later → move to worker thread
 
-## Strict Ownership Model
+## Strict Ownership Model（严格的所有权模型）
 - Transport owns QSerialPort
 - Service owns buffer
 - Protocol owns nothing
@@ -63,7 +63,7 @@ No shared mutable objects across layers.
 
 ---
 
-# 3 - Primary Objectives (Phase 1)
+# 3 - Primary Objectives (Phase 1)（主要目标）
 
 The system must support:
 
@@ -76,7 +76,7 @@ OTA upgrade is NOT included in this phase.
 
 ---
 
-# 4 - Current Project Architecture
+# 4 - Current Project Architecture（当前项目架构）
 
 All outputs must strictly integrate into:
 
@@ -91,7 +91,7 @@ No new top-level directories allowed.
 
 ---
 
-# 5 - Protocol Layer
+# 5 - Protocol Layer（协议层）
 
 Location:
 core.protocol.protocol_frame
@@ -108,13 +108,13 @@ CRC:
 
 Rules:
 
-- All protocol functions must be pure(纯函数)
-- No QObject usage(不依赖Qt特性)
-- No state(无状态)
-- No buffer ownership(不拥有缓冲区)
-- No side effects(无副作用)
-- CRC must be verified before accepting frame(必须验证CRC)
-- Must support incremental parsing(必须支持增量解析,适应粘包和半包)
+- All protocol functions must be pure（纯函数）
+- No QObject usage（不依赖Qt特性）
+- No state（无状态）
+- No buffer ownership（不拥有缓冲区）
+- No side effects（无副作用）
+- CRC must be verified before accepting frame（必须验证CRC）
+- Must support incremental parsing（必须支持增量解析,适应粘包和半包）
 
 It is strictly responsible for:
 1. Frame construction (encode)
@@ -132,7 +132,7 @@ All functions must be pure and side-effect free.
 
 ---
 
-# 6 - Transport Layer
+# 6 - Transport Layer（传输层）
 
 Location:
 core.transport.serial.mySerial
@@ -151,7 +151,7 @@ Never move parsing logic into transport.
 
 ---
 
-# 7 - Service Layer
+# 7 - Service Layer（服务层）
 
 Location:
 core.service.data_processor.DataProcessor
@@ -181,7 +181,7 @@ Service layer must NOT:
 
 ---
 
-# 8 - Data Processing Strategy
+# 8 - Data Processing Strategy（数据处理策略）
 
 When implementing receive logic:
 
@@ -209,7 +209,7 @@ Must support:
 
 ---
 
-# 9 - FOC Domain Context
+# 9 - FOC Domain Context（FOC领域上下文）
 
 This desktop tool interacts with a FOC motor controller.
 
@@ -241,7 +241,7 @@ Service layer must clearly distinguish between these states.
 
 ---
 
-# 10 - UI Interaction Rules
+# 10 - UI Interaction Rules（UI交互规则）
 
 Architecture:
 
@@ -263,7 +263,7 @@ Rules:
 
 ---
 
-# 11 - Required Signal Design (Example)
+# 11 - Required Signal Design (Example)（必需的信号设计示例）
 
 Service layer should emit signals like:
 
@@ -280,7 +280,7 @@ Avoid sending raw frame data to UI.
 
 ---
 
-# 12 - Command Sending Rules
+# 12 - Command Sending Rules（命令发送规则）
 
 When sending control commands:
 
@@ -301,7 +301,7 @@ Example control types:
 
 ---
 
-# 13 - Engineering Standards
+# 13 - Engineering Standards（工程标准）
 
 All generated code must reflect:
 
@@ -314,7 +314,7 @@ All generated code must reflect:
 
 ---
 
-# 14 - Prohibited Behaviors
+# 14 - Prohibited Behaviors（禁止行为）
 
 - No CRC skipping
 - No protocol redesign
@@ -326,7 +326,7 @@ All generated code must reflect:
 
 ---
 
-# 15 - Phase Boundary
+# 15 - Phase Boundary（阶段边界）
 
 This version of the project does NOT include:
 
