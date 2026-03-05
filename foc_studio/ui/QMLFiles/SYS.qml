@@ -106,7 +106,7 @@ Rectangle {
                 
                 onAccepted: {
                     if (text.trim() !== "") {
-                        serialBackend.addManualPort(text.trim())
+                        backend.addManualPort(text.trim())
                         text = ""  // 清空输入框
                     }
                 }
@@ -117,7 +117,7 @@ Rectangle {
                 enabled: !root.isSerialConnected && manualPortInput.text.trim() !== ""
                 onClicked: {
                     if (manualPortInput.text.trim() !== "") {
-                        serialBackend.addManualPort(manualPortInput.text.trim())
+                        backend.addManualPort(manualPortInput.text.trim())
                         manualPortInput.text = ""  // 清空输入框
                     }
                 }
@@ -134,7 +134,7 @@ Rectangle {
                 enabled: !root.isSerialConnected && portComboBox.currentIndex >= 0
                 onClicked: {
                     var selectedPort = root.portListModel[portComboBox.currentIndex]
-                    serialBackend.openPort(selectedPort.portName, root.baudRate)
+                    backend.connectSerial(selectedPort.portName, root.baudRate)
                 }
             }
 
@@ -142,7 +142,7 @@ Rectangle {
                 text: "断开串口"
                 enabled: root.isSerialConnected
                 onClicked: {
-                    serialBackend.closePort()
+                    backend.disconnectSerial()
                 }
             }
         }
@@ -150,7 +150,7 @@ Rectangle {
 
     // 监听串口列表变化
     Connections {
-        target: serialBackend
+        target: backend
         function onPortsListChanged(portsList) {
             root.portListModel = portsList
             // 如果有多个串口，不自动选择，让用户手动选择
@@ -162,9 +162,9 @@ Rectangle {
     
     // 初始化时获取串口列表
     Component.onCompleted: {
-        if (serialBackend) {
-            root.portListModel = serialBackend.portsList
-            if (serialBackend.portsList.length > 0) {
+        if (backend) {
+            root.portListModel = backend.portsList
+            if (backend.portsList.length > 0) {
                 portComboBox.currentIndex = -1  // 不自动选择
             }
         }

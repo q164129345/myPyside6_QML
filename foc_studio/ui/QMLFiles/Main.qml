@@ -25,13 +25,13 @@ ApplicationWindow {
     // 当前选中的页面
     property string currentPage: "SYS"
         
-    // 串口连接状态 - 直接绑定到后端属性（serialBackend 从 Python setContextProperty 注入）
-    property bool isSerialConnected: serialBackend ? serialBackend.isConnected : false
+    // 串口连接状态 - 绑定到 BackendFacade 属性（backend 从 Python setContextProperty 注入）
+    property bool isSerialConnected: backend ? backend.isConnected : false
 
     // 监听串口连接状态变化消息
     Connections {
-        target: serialBackend
-        enabled: serialBackend !== null
+        target: backend
+        enabled: backend !== null
         function onConnectionStatusChanged(connected, message) {
             console.log("Serial status:", connected, message)
         }
