@@ -122,3 +122,15 @@ Serial Port
   ▼
 FOC Controller
 ```
+# Layer Interaction Rules
+
+UI → BackendFacade
+BackendFacade → Service
+Service → Protocol
+Service → Transport
+
+Forbidden:
+
+UI → Transport
+Transport → Service method calls
+Protocol → any QObject
