@@ -123,6 +123,14 @@ class mySerial(QObject):
             print("[mySerial] Port closed", flush=True)
             self.connectionStatusChanged.emit(False, "Port closed")
 
+    @Slot(bytes)
+    def sendData(self, data: bytes) -> None:
+        """发送字节数据到串口。"""
+        if not self._is_connected or not self._serial_port.isOpen():
+            print("[mySerial] Cannot send: port not connected", flush=True)
+            return
+        self._serial_port.write(data)
+
     def On_Data_Ready(self) -> None:
         """
         Performance optimized: 

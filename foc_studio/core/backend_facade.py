@@ -1,7 +1,14 @@
-from PySide6.QtCore import QObject, Signal, Slot, Property
+import struct
+
+from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer
 
 from core.transport.serial import mySerial
 from core.service.data_processor import DataProcessor
+from core.service.frame_dispatcher import FrameDispatcher
+from core.protocol.protocol_frame import pack_frame
+
+# ── 命令字常量 ─────────────────────────────────────────────────────────────────
+_CMD_MOTOR_CONTROL: int = 0x01   # PC → MCU: 电机控制（使能 + 目标转速）
 
 
 class BackendFacade(QObject):
@@ -17,13 +24,40 @@ class BackendFacade(QObject):
     isConnectedChanged = Signal()
     portsListChanged = Signal(list)
 
+    # 转发来自 FrameDispatcher 的信号
+    speedUpdated       = Signal(int)    # 当前转速 rpm
+    motorTempUpdated   = Signal(float)  # 电机温度 ℃
+    mosTempUpdated     = Signal(float)  # MOS 温度 ℃
+    enableStateUpdated = Signal(int)    # 使能状态 0/1
+    errorCodeUpdated   = Signal(int)    # 错误码
+
     def __init__(self) -> None:
         super().__init__()
         self._serial = mySerial()
         self._processor = DataProcessor()
+        self._dispatcher = FrameDispatcher()
+
+        # 电机状态（用于 500 ms 周期性保活发送）
+        self._motor_enable: int = 0
+        self._motor_target_speed: int = 0
+
+        # 周期性发送定时器：协议要求 500 ms/次，MCU 2 s 超时自动停机
+        self._motor_cmd_timer = QTimer(self)
+        self._motor_cmd_timer.setInterval(500)
+        self._motor_cmd_timer.timeout.connect(self._send_motor_cmd)
 
         # Transport → Service
         self._serial.dataReceived.connect(self._processor.process_data)
+
+        # Service → FrameDispatcher
+        self._processor.telemetryUpdated.connect(self._dispatcher.dispatch)
+
+        # FrameDispatcher → Facade (再由 QML 订阅)
+        self._dispatcher.speedUpdated.connect(self.speedUpdated)
+        self._dispatcher.motorTempUpdated.connect(self.motorTempUpdated)
+        self._dispatcher.mosTempUpdated.connect(self.mosTempUpdated)
+        self._dispatcher.enableStateUpdated.connect(self.enableStateUpdated)
+        self._dispatcher.errorCodeUpdated.connect(self.errorCodeUpdated)
 
         # 将 Transport 信号转发至 Facade（供 QML 订阅）
         self._serial.connectionStatusChanged.connect(self.connectionStatusChanged)
@@ -58,13 +92,41 @@ class BackendFacade(QObject):
     def addManualPort(self, port_name: str) -> None:
         self._serial.addManualPort(port_name)
 
-    # ── 电机命令 API（待协议层编码实现后完善）────────────────────────────
+    # ── 电机命令 API ──────────────────────────────────────────────────────────────
 
-    @Slot(int, bytes)
-    def sendMotorCommand(self, cmd: int, data: bytes = b'') -> None:
+    @Slot(int, int)
+    def setMotorControl(self, enable: int, speed_rpm: int) -> None:
         """
-        发送电机控制命令。
-        QML → BackendFacade → Protocol.encode() → Transport.write()
+        设置电机控制目标并立即发送一帧，同时启动周期性保活定时器。
+
+        CMD 0x01 Payload:
+            Offset 0  1 byte  uint8  使能位（0=松轴, 1=使能）
+            Offset 1  2 bytes int16  目标转速 (rpm), Big-Endian
+
+        Args:
+            enable:    0 = 松轴 / 停止, 1 = 使能
+            speed_rpm: 目标转速（rpm，有符号）
         """
-        # TODO: 调用 Protocol.encode(cmd, data) 后经 Transport 发送
-        pass
+        self._motor_enable = enable
+        self._motor_target_speed = speed_rpm
+        self._send_motor_cmd()
+
+        if enable:
+            if not self._motor_cmd_timer.isActive():
+                self._motor_cmd_timer.start()
+        else:
+            self._motor_cmd_timer.stop()
+
+    @Slot()
+    def stopMotor(self) -> None:
+        """紧急停机：停止保活定时器并发送松轴指令。"""
+        self._motor_cmd_timer.stop()
+        self._motor_enable = 0
+        self._motor_target_speed = 0
+        self._send_motor_cmd()
+
+    def _send_motor_cmd(self) -> None:
+        """内部：编码 CMD 0x01 帧并通过 Transport 发送。"""
+        data = struct.pack('>Bh', self._motor_enable, self._motor_target_speed)
+        frame = pack_frame(_CMD_MOTOR_CONTROL, data)
+        self._serial.sendData(frame)

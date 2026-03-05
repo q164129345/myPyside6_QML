@@ -53,8 +53,12 @@ ParseResult = Optional[Tuple[Optional[ParsedFrame], int]]
 # ── CRC16-MODBUS 查表 ─────────────────────────────────────────────────────────
 
 def _build_crc16_table() -> Tuple[int, ...]:
-    """预生成 CRC16-MODBUS 查找表（256 项，LSB-first，多项式 0x8005）。"""
-    poly = 0x8005
+    """预生成 CRC16-MODBUS 查找表（256 项，LSB-first，反射多项式 0xA001）。
+
+    CRC16-MODBUS 官方多项式为 0x8005，输入/输出均做位反转（reflected）。
+    采用右移（LSB-first）查表实现时，必须使用反射多项式 0xA001 = reverse_bits(0x8005)。
+    """
+    poly = 0xA001  # reflected form of 0x8005，LSB-first 右移实现专用
     table: list[int] = []
     for i in range(256):
         crc = i
@@ -70,7 +74,7 @@ def calculate_crc16(data: bytes) -> int:
     """
     计算 CRC16-MODBUS 校验值（查表法）。
 
-    规范：多项式 0x8005，初值 0xFFFF，LSB-first，大端序存储。
+    规范：多项式 0x8005（LSB-first 查表实现使用反射多项式 0xA001），初值 0xFFFF，大端序存储。
 
     Args:
         data: 待校验字节序列。
