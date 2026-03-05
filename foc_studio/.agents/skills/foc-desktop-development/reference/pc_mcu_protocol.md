@@ -57,9 +57,49 @@ Note:
 | 0 | 2 | int16 | 当前转速 (rpm) |
 | **DATA_LEN** | 2 |  |  |
 
+### CMD 0x65 - Motor Temperature
+Direction: MCU → PC  
+Description:  反馈电机的实时温度
+Frequence: 1000ms/次
+Note: 
 
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | 当前温度 (单位0.1℃) |
+| **DATA_LEN** | 2 |  |  |
 
+### CMD 0x66 - MOS Temperature
+Direction: MCU → PC  
+Description:  反馈板子MOS的实时温度
+Frequence: 1000ms/次
+Note: 
 
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | 当前温度 (单位0.1℃) |
+| **DATA_LEN** | 2 |  |  |
+
+### CMD 0x67 - Motor Enable State
+Direction: MCU → PC  
+Description:  反馈电机的使能状态
+Frequence: 1000ms/次
+Note: 
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8_t | 使能状态（0：未使能，1：使能） |
+| **DATA_LEN** | 2 |  |  |
+
+### CMD 0x68 - 错误码
+Direction: MCU → PC  
+Description:  错误码
+Frequence: 1000ms/次
+Note: 
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | uint16_t | 错误码 |
+| **DATA_LEN** | 2 |  |  |
 
 
 
