@@ -16,7 +16,7 @@ CRC16 规范：CRC16-MODBUS（多项式 0x8005，初值 0xFFFF，大端序输出
 """
 
 import struct
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 # ── 协议常量 ──────────────────────────────────────────────────────────────────
 
@@ -27,13 +27,25 @@ CRC_SIZE: int       = 2     # crc16_h + crc16_l
 MIN_FRAME_SIZE: int = HEADER_SIZE + CRC_SIZE   # 最小帧长（data 段为空时）
 MAX_DATA_SIZE: int  = 255
 
-# ── 类型别名 ──────────────────────────────────────────────────────────────────
+# ── 数据结构 ──────────────────────────────────────────────────────────────────
 
-# 成功解帧后的载荷：(cmd, data)
-ParsedFrame = Tuple[int, bytes]
+class ParsedFrame(NamedTuple):
+    """
+    成功解析后的协议帧，只读；基于 tuple，属性访问无哈希开销。
+
+    Attributes:
+        cmd:     命令字（0x00 ~ 0xFF）
+        datalen: 数据段长度（冗余字段，等于 len(data)，保留以便快速访问）
+        data:    数据段字节串
+        crc:     帧内 CRC16 值（16 位整数，大端序）
+    """
+    cmd:     int
+    datalen: int
+    data:    bytes
+    crc:     int
 
 # parse_frame_from_buffer 的返回语义：
-#   ((cmd, data), consumed)   ← 解析到一帧；consumed 为已消耗字节数
+#   (ParsedFrame, consumed)   ← 解析到一帧；consumed 为已消耗字节数
 #   (None, discard_count)     ← 无有效帧头；discard_count 为可安全丢弃的字节数
 #   None                      ← 数据不足；调用方保留缓冲区等待更多数据
 ParseResult = Optional[Tuple[Optional[ParsedFrame], int]]
@@ -122,7 +134,7 @@ def unpack_frame(frame: bytes) -> Optional[ParsedFrame]:
         frame: 完整帧字节序列，至少 MIN_FRAME_SIZE 字节。
 
     Returns:
-        成功: (cmd, data) 元组。
+        成功: ParsedFrame(cmd, datalen, data, crc) 实例。
         失败: None。
     """
     if len(frame) < MIN_FRAME_SIZE:
@@ -145,7 +157,7 @@ def unpack_frame(frame: bytes) -> Optional[ParsedFrame]:
     if calculate_crc16(crc_payload) != recv_crc:
         return None
 
-    return (cmd, data)
+    return ParsedFrame(cmd=cmd, datalen=datalen, data=data, crc=recv_crc)
 
 
 def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
@@ -239,8 +251,7 @@ if __name__ == "__main__":
     print("[3] unpack_frame")
     result = unpack_frame(packed)
     assert result is not None
-    cmd, data = result
-    print(f"    cmd: 0x{cmd:02X}  data: {data.hex(' ').upper()}\n")
+    print(f"    cmd: 0x{result.cmd:02X}  datalen: {result.datalen}  data: {result.data.hex(' ').upper()}  crc: 0x{result.crc:04X}\n")
 
     # CRC 校验失败
     print("[4] CRC 校验失败检测")
@@ -256,7 +267,6 @@ if __name__ == "__main__":
     assert res is not None
     frame_data, consumed = res
     assert frame_data is not None
-    cmd2, data2 = frame_data
-    print(f"    cmd: 0x{cmd2:02X}  data: {data2.hex(' ').upper()}  consumed: {consumed}\n")
+    print(f"    cmd: 0x{frame_data.cmd:02X}  datalen: {frame_data.datalen}  data: {frame_data.data.hex(' ').upper()}  crc: 0x{frame_data.crc:04X}  consumed: {consumed}\n")
 
     print("所有自测通过。")

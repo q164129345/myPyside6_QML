@@ -20,7 +20,6 @@ if __name__ == "__main__":
     # 连接串口接收数据的信号到数据处理槽函数
     serialBackend.dataReceived.connect(dataProcessor.process_data)
 
-
     # 暴露给QML
     engine.rootContext().setContextProperty("serialBackend", serialBackend)
 
@@ -31,7 +30,3 @@ if __name__ == "__main__":
         sys.exit(-1)
     
     sys.exit(app.exec())
-
-
-
-
