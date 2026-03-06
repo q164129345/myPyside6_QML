@@ -166,36 +166,85 @@ Rectangle {
                 anchors.topMargin: 6
             }
 
-            GridLayout {
-                anchors.centerIn: parent
-                columns: 2
-                rowSpacing: 16
-                columnSpacing: 32
+            // 遥测项组件：标签+范围 / 数值框 / 单位
+            component TelemetryRow: RowLayout {
+                property string label:   ""
+                property string range:   ""
+                property string value:   "--"
+                property string unit:    ""
 
-                Text {
-                    text: "转速"
-                    font.pixelSize: 14
-                    color: "#7f8c8d"
-                }
-                Text {
-                    text: root.isSerialConnected ? root.currentSpeed + " RPM" : "--"
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: "#2c3e50"
-                    Layout.minimumWidth: 120
+                spacing: 10
+
+                // 左：标签 + 范围
+                Column {
+                    spacing: 2
+                    Layout.preferredWidth: 110
+                    Text {
+                        text: label
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+                    Text {
+                        text: range
+                        font.pixelSize: 10
+                        color: "#95a5a6"
+                    }
                 }
 
-                Text {
-                    text: "电流"
-                    font.pixelSize: 14
-                    color: "#7f8c8d"
+                // 中：数值显示框
+                Rectangle {
+                    implicitWidth: 140
+                    implicitHeight: 28
+                    radius: 4
+                    color: "#e8f4fd"
+                    border.color: "#aed6f1"
+                    border.width: 1
+
+                    Text {
+                        anchors {
+                            verticalCenter: parent.verticalCenter
+                            right: parent.right
+                            rightMargin: 8
+                        }
+                        text: value
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#2980b9"
+                    }
                 }
+
+                // 右：单位
                 Text {
-                    text: root.isSerialConnected ? root.currentCurrent.toFixed(2) + " A" : "--"
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: "#2c3e50"
-                    Layout.minimumWidth: 120
+                    text: unit
+                    font.pixelSize: 13
+                    color: "#7f8c8d"
+                    Layout.preferredWidth: 36
+                }
+            }
+
+            ColumnLayout {
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                    topMargin: 30
+                    leftMargin: 16
+                    rightMargin: 16
+                }
+                spacing: 12
+
+                TelemetryRow {
+                    label: "转速"
+                    range: "(-3000~3000)"
+                    value: root.isSerialConnected ? root.currentSpeed.toString() : "--"
+                    unit:  "RPM"
+                }
+
+                TelemetryRow {
+                    label: "电流"
+                    range: "(0~30.0)"
+                    value: root.isSerialConnected ? root.currentCurrent.toFixed(2) : "--"
+                    unit:  "A"
                 }
             }
         }
