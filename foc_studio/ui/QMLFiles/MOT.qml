@@ -15,43 +15,60 @@ Rectangle {
     // 遥测数据（由 Connections 更新）
     property int  currentSpeed:   0
     property real currentCurrent: 0.0
+    property int  errorCode:      0
+    property int  enableState:    0
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 0
+        anchors.margins: 12
+        spacing: 8
 
-        // ── 顶部命令栏 ─────────────────────────────────────────
+        // ── 控制面板 ──────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 48
-            color: '#345d5e'
+            implicitHeight: 72
+            color: "white"
+            border.color: "#bdc3c7"
+            border.width: 1
+            radius: 8
+
+            Text {
+                text: "控制"
+                font.pixelSize: 12
+                font.bold: true
+                color: "#2c3e50"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 6
+            }
 
             RowLayout {
                 anchors {
-                    fill: parent
+                    top: parent.top
+                    topMargin: 26
+                    left: parent.left
                     leftMargin: 16
+                    right: parent.right
                     rightMargin: 16
-                    topMargin: 10
-                    bottomMargin: 10
+                    bottom: parent.bottom
+                    bottomMargin: 8
                 }
                 spacing: 10
 
-                // 标签
                 Text {
                     text: "目标速度："
-                    font.pixelSize: 14
-                    color: "#ecf0f1"
+                    font.pixelSize: 13
+                    color: "#2c3e50"
                     verticalAlignment: Text.AlignVCenter
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // 转速输入框
                 TextField {
                     id: speedInput
-                    implicitWidth: 120
+                    implicitWidth: 110
                     Layout.alignment: Qt.AlignVCenter
                     placeholderText: "例如: 1500"
-                    font.pixelSize: 14
+                    font.pixelSize: 13
                     horizontalAlignment: TextInput.AlignRight
                     enabled: root.isSerialConnected
                     validator: IntValidator {
@@ -60,22 +77,20 @@ Rectangle {
                     }
                     background: Rectangle {
                         radius: 4
-                        color: speedInput.enabled ? "white" : "#45555f"
-                        border.color: speedInput.activeFocus ? "#3498db" : "transparent"
-                        border.width: 2
+                        color: speedInput.enabled ? "white" : "#dde1e4"
+                        border.color: speedInput.activeFocus ? "#3498db" : "#bdc3c7"
+                        border.width: 1
                     }
                 }
 
-                // 单位
                 Text {
                     text: "RPM"
-                    font.pixelSize: 14
-                    color: "#bdc3c7"
+                    font.pixelSize: 13
+                    color: "#7f8c8d"
                     verticalAlignment: Text.AlignVCenter
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // 弹性空间 — 将按钮推到右侧
                 Item { Layout.fillWidth: true }
 
                 // 启动按钮
@@ -95,17 +110,13 @@ Rectangle {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-
                     background: Rectangle {
                         radius: 5
                         color: startBtn.enabled
                                ? (startBtn.pressed ? "#1e8449" : "#27ae60")
-                               : "#45555f"
+                               : "#bdc3c7"
                     }
-
-                    onClicked: {
-                        backend.setMotorControl(1, parseInt(speedInput.text))
-                    }
+                    onClicked: backend.setMotorControl(1, parseInt(speedInput.text))
                 }
 
                 // 停止按钮
@@ -125,33 +136,42 @@ Rectangle {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-
                     background: Rectangle {
                         radius: 5
                         color: stopBtn.enabled
                                ? (stopBtn.pressed ? "#c0392b" : "#e74c3c")
-                               : "#45555f"
+                               : "#bdc3c7"
                     }
-
-                    onClicked: {
-                        backend.setMotorControl(0, 0)
-                    }
+                    onClicked: backend.setMotorControl(0, 0)
                 }
             }
         }
 
-        // ── 内容区 ─────────────────────────────────────────────
-        Item {
+        // ── 监控界面 ──────────────────────────────────────────
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            color: "white"
+            border.color: "#bdc3c7"
+            border.width: 1
+            radius: 8
+
+            Text {
+                text: "监控界面"
+                font.pixelSize: 12
+                font.bold: true
+                color: "#2c3e50"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 6
+            }
 
             GridLayout {
                 anchors.centerIn: parent
                 columns: 2
                 rowSpacing: 16
-                columnSpacing: 24
+                columnSpacing: 32
 
-                // 转速行
                 Text {
                     text: "转速"
                     font.pixelSize: 14
@@ -162,11 +182,9 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     color: "#2c3e50"
-                    horizontalAlignment: Text.AlignRight
                     Layout.minimumWidth: 120
                 }
 
-                // 电流行
                 Text {
                     text: "电流"
                     font.pixelSize: 14
@@ -177,9 +195,37 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     color: "#2c3e50"
-                    horizontalAlignment: Text.AlignRight
                     Layout.minimumWidth: 120
                 }
+            }
+        }
+
+        // ── 电机故障信息 ──────────────────────────────────────
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 72
+            color: "white"
+            border.color: "#bdc3c7"
+            border.width: 1
+            radius: 8
+
+            Text {
+                text: "电机故障信息"
+                font.pixelSize: 12
+                font.bold: true
+                color: "#2c3e50"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 6
+            }
+
+            Text {
+                anchors.centerIn: parent
+                font.pixelSize: 13
+                color: root.errorCode !== 0 ? "#e74c3c" : "#27ae60"
+                text: root.isSerialConnected
+                      ? (root.errorCode !== 0 ? "错误码: 0x" + root.errorCode.toString(16).toUpperCase() : "正常")
+                      : "--"
             }
         }
     }
@@ -189,11 +235,9 @@ Rectangle {
         target: backend
         enabled: backend !== null
 
-        function onSpeedUpdated(rpm) {
-            root.currentSpeed = rpm
-        }
-        function onMotorCurrentUpdated(amps) {
-            root.currentCurrent = amps
-        }
+        function onSpeedUpdated(rpm)         { root.currentSpeed   = rpm   }
+        function onMotorCurrentUpdated(amps) { root.currentCurrent = amps  }
+        function onErrorCodeUpdated(code)    { root.errorCode      = code  }
+        function onEnableStateUpdated(state) { root.enableState    = state }
     }
 }
