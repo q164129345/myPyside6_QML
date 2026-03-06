@@ -1,14 +1,9 @@
-import struct
-
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer
 
 from core.transport.serial import mySerial
 from core.service.data_processor import DataProcessor
 from core.service.frame_dispatcher import FrameDispatcher
-from core.protocol.protocol_frame import pack_frame
-
-# ── 命令字常量 ─────────────────────────────────────────────────────────────────
-_CMD_MOTOR_CONTROL: int = 0x01   # PC → MCU: 电机控制（使能 + 目标转速）
+from core.command.motor_command import build_motor_control
 
 
 class BackendFacade(QObject):
@@ -131,6 +126,5 @@ class BackendFacade(QObject):
 
     def _send_motor_cmd(self) -> None:
         """内部：编码 CMD 0x01 帧并通过 Transport 发送。"""
-        data = struct.pack('>Bh', self._motor_enable, self._motor_target_speed)
-        frame = pack_frame(_CMD_MOTOR_CONTROL, data)
+        frame = build_motor_control(self._motor_enable, self._motor_target_speed)
         self._serial.sendData(frame)

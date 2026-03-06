@@ -39,6 +39,7 @@ OTA upgrade is NOT included in this phase.（OTA 升级不包含在此阶段）
 
 All outputs must strictly integrate into:
 core/
+    command/
     protocol/
     transport/
     service/
