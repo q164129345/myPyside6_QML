@@ -11,6 +11,8 @@
   CMD 0x66  MOS Temperature      MOS 温度（int16, 单位 0.1℃）
   CMD 0x67  Motor Enable State   使能状态（uint8）
   CMD 0x68  Error Code           错误码（uint16）
+  CMD 0x69  Iq/Id                Iq 分量、Id 分量（2×int16）
+  CMD 0x6A  Motor Current        电机电流（int16, 单位 0.1A）
 """
 
 import struct
@@ -25,6 +27,8 @@ CMD_MOTOR_TEMPERATURE:     int = 0x65   # MCU → PC: 电机温度（2 bytes, in
 CMD_MOS_TEMPERATURE:       int = 0x66   # MCU → PC: MOS 温度（2 bytes, int16, 单位 0.1℃）
 CMD_MOTOR_ENABLE_STATE:    int = 0x67   # MCU → PC: 使能状态（1 byte, uint8）
 CMD_ERROR_CODE:            int = 0x68   # MCU → PC: 错误码（2 bytes, uint16）
+CMD_IQ_ID:                 int = 0x69   # MCU → PC: Iq/Id 电流分量（4 bytes, 2×int16）
+CMD_MOTOR_CURRENT:         int = 0x6A   # MCU → PC: 电机电流（2 bytes, int16, 单位 0.1A）
 
 
 class FrameDispatcher(QObject):
@@ -42,11 +46,13 @@ class FrameDispatcher(QObject):
         errorCodeUpdated(int):   CMD 0x68 — 错误码（无符号）
     """
 
-    speedUpdated      = Signal(int)    # 当前转速 rpm
-    motorTempUpdated  = Signal(float)  # 电机温度 ℃
-    mosTempUpdated    = Signal(float)  # MOS 温度 ℃
-    enableStateUpdated = Signal(int)   # 使能状态 0/1
-    errorCodeUpdated  = Signal(int)    # 错误码
+    speedUpdated        = Signal(int)         # 当前转速 rpm
+    motorTempUpdated    = Signal(float)       # 电机温度 ℃
+    mosTempUpdated      = Signal(float)       # MOS 温度 ℃
+    enableStateUpdated  = Signal(int)         # 使能状态 0/1
+    errorCodeUpdated    = Signal(int)         # 错误码
+    iqIdUpdated         = Signal(int, int)    # Iq 分量, Id 分量
+    motorCurrentUpdated = Signal(float)       # 电机电流 A
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,6 +62,8 @@ class FrameDispatcher(QObject):
             CMD_MOS_TEMPERATURE:    self._handle_mos_temperature,
             CMD_MOTOR_ENABLE_STATE: self._handle_motor_enable_state,
             CMD_ERROR_CODE:         self._handle_error_code,
+            CMD_IQ_ID:              self._handle_iq_id,
+            CMD_MOTOR_CURRENT:      self._handle_motor_current,
         }
 
     # ── 帧分发入口 ──────────────────────────────────────────────────────────────
@@ -144,3 +152,34 @@ class FrameDispatcher(QObject):
         (code,) = struct.unpack_from('>H', frame.data, 0)
         print(f"[FrameDispatcher] Error Code: {code}", flush=True)  # Debug log
         self.errorCodeUpdated.emit(code)
+
+    # ── CMD 0x69: Iq/Id ───────────────────────────────────────────────────────
+
+    def _handle_iq_id(self, frame: ParsedFrame) -> None:
+        """
+        解码 Iq/Id 电流分量帧（CMD 0x69）。
+
+        Payload 格式:
+            Offset 0  2 bytes  int16  Iq 电流分量, Big-Endian
+            Offset 2  2 bytes  int16  Id 电流分量, Big-Endian
+        """
+        if frame.datalen < 4:
+            return
+        iq, id_ = struct.unpack_from('>hh', frame.data, 0)
+        print(f"[FrameDispatcher] Iq={iq}  Id={id_}", flush=True)  # Debug log
+        self.iqIdUpdated.emit(iq, id_)
+
+    # ── CMD 0x6A: Motor Current ───────────────────────────────────────────────
+
+    def _handle_motor_current(self, frame: ParsedFrame) -> None:
+        """
+        解码电机电流帧（CMD 0x6A）。
+
+        Payload 格式:
+            Offset 0  2 bytes  int16  电流值（单位 0.1A），转换后发出 float A
+        """
+        if frame.datalen < 2:
+            return
+        (raw,) = struct.unpack_from('>h', frame.data, 0)
+        print(f"[FrameDispatcher] Motor Current: {raw / 10.0} A", flush=True)  # Debug log
+        self.motorCurrentUpdated.emit(raw / 10.0)

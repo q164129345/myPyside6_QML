@@ -25,11 +25,13 @@ class BackendFacade(QObject):
     portsListChanged = Signal(list)
 
     # 转发来自 FrameDispatcher 的信号
-    speedUpdated       = Signal(int)    # 当前转速 rpm
-    motorTempUpdated   = Signal(float)  # 电机温度 ℃
-    mosTempUpdated     = Signal(float)  # MOS 温度 ℃
-    enableStateUpdated = Signal(int)    # 使能状态 0/1
-    errorCodeUpdated   = Signal(int)    # 错误码
+    speedUpdated        = Signal(int)       # 当前转速 rpm
+    motorTempUpdated    = Signal(float)     # 电机温度 ℃
+    mosTempUpdated      = Signal(float)     # MOS 温度 ℃
+    enableStateUpdated  = Signal(int)       # 使能状态 0/1
+    errorCodeUpdated    = Signal(int)       # 错误码
+    iqIdUpdated         = Signal(int, int)  # Iq 分量, Id 分量
+    motorCurrentUpdated = Signal(float)     # 电机电流 A
 
     def __init__(self) -> None:
         super().__init__()
@@ -58,6 +60,8 @@ class BackendFacade(QObject):
         self._dispatcher.mosTempUpdated.connect(self.mosTempUpdated)
         self._dispatcher.enableStateUpdated.connect(self.enableStateUpdated)
         self._dispatcher.errorCodeUpdated.connect(self.errorCodeUpdated)
+        self._dispatcher.iqIdUpdated.connect(self.iqIdUpdated)
+        self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
 
         # 将 Transport 信号转发至 Facade（供 QML 订阅）
         self._serial.connectionStatusChanged.connect(self.connectionStatusChanged)
