@@ -90,7 +90,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 2:
             return
         (speed,) = struct.unpack_from('>h', frame.data, 0)
-        print(f"[FrameDispatcher] Speed Feedback: {speed} rpm", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] Speed Feedback: {speed} rpm", flush=True)  # Debug log
         self.speedUpdated.emit(speed)
 
     # ── CMD 0x65: Motor Temperature ───────────────────────────────────────────
@@ -105,7 +105,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
-        print(f"[FrameDispatcher] Motor Temperature: {raw / 10.0} ℃", flush=True)  # Debug log  
+        #print(f"[FrameDispatcher] Motor Temperature: {raw / 10.0} ℃", flush=True)  # Debug log  
         self.motorTempUpdated.emit(raw / 10.0)
 
     # ── CMD 0x66: MOS Temperature ─────────────────────────────────────────────
@@ -120,7 +120,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
-        print(f"[FrameDispatcher] MOS Temperature: {raw / 10.0} ℃", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] MOS Temperature: {raw / 10.0} ℃", flush=True)  # Debug log
         self.mosTempUpdated.emit(raw / 10.0)
 
     # ── CMD 0x67: Motor Enable State ─────────────────────────────────────────
@@ -135,7 +135,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 1:
             return
         state = frame.data[0]
-        print(f"[FrameDispatcher] Motor Enable State: {state}", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] Motor Enable State: {state}", flush=True)  # Debug log
         self.enableStateUpdated.emit(state)
 
     # ── CMD 0x68: Error Code ──────────────────────────────────────────────────
@@ -150,7 +150,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 2:
             return
         (code,) = struct.unpack_from('>H', frame.data, 0)
-        print(f"[FrameDispatcher] Error Code: {code}", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] Error Code: {code}", flush=True)  # Debug log
         self.errorCodeUpdated.emit(code)
 
     # ── CMD 0x69: Iq/Id ───────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ class FrameDispatcher(QObject):
         if frame.datalen < 4:
             return
         iq, id_ = struct.unpack_from('>hh', frame.data, 0)
-        print(f"[FrameDispatcher] Iq={iq}  Id={id_}", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] Iq={iq}  Id={id_}", flush=True)  # Debug log
         self.iqIdUpdated.emit(iq, id_)
 
     # ── CMD 0x6A: Motor Current ───────────────────────────────────────────────
@@ -181,5 +181,5 @@ class FrameDispatcher(QObject):
         if frame.datalen < 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
-        print(f"[FrameDispatcher] Motor Current: {raw / 10.0} A", flush=True)  # Debug log
+        # print(f"[FrameDispatcher] Motor Current: {raw / 10.0} A", flush=True)  # Debug log
         self.motorCurrentUpdated.emit(raw / 10.0)
