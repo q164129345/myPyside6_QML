@@ -123,6 +123,35 @@ ApplicationWindow {
                     }
                 }
 
+                // MOT 按钮
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: root.currentPage === "MOT" ? "#3498db" : "#34495e"
+                    radius: 5
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            text: "MOT"
+                            color: "white"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "MOT"
+                        }
+                    }
+                }
+
                 // CAN 按钮
                 Rectangle {
                     Layout.fillWidth: true
@@ -168,10 +197,15 @@ ApplicationWindow {
             // 使用 StackLayout 来切换不同的页面
             StackLayout {
                 anchors.fill: parent
-                currentIndex: root.currentPage === "SYS" ? 0 : 1
+                currentIndex: root.currentPage === "SYS" ? 0 : root.currentPage === "MOT" ? 1 : 2
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
+                    isSerialConnected: root.isSerialConnected
+                }
+
+                // MOT 页面 - 使用独立的组件
+                MOT {
                     isSerialConnected: root.isSerialConnected
                 }
 
