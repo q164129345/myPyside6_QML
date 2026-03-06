@@ -172,7 +172,7 @@ def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
     此函数不修改缓冲区，由调用方根据返回值决定如何清理。
 
     返回语义：
-        ((cmd, data), consumed)  → 解析到一帧，执行 del buffer[:consumed]
+        (ParsedFrame, consumed)  → 解析到一帧，执行 del buffer[:consumed]
         (None, discard_count)    → 无有效帧头，执行 del buffer[:discard_count]
         None                     → 数据不足，保留缓冲区等待更多数据
 
@@ -190,8 +190,7 @@ def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
             frame_data, consumed = result
             del self._buffer[:consumed]
             if frame_data:
-                cmd, data = frame_data
-                self._dispatch(cmd, data)       # 分发给业务逻辑
+                self._dispatch(frame_data.cmd, frame_data.data)  # 分发给业务逻辑
     """
     buf_len = len(buffer)
     if buf_len < MIN_FRAME_SIZE:

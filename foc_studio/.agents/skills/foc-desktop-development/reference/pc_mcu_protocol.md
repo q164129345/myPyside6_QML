@@ -23,7 +23,7 @@ Byte order：Big Endian
 | CRC_H | 1 byte | CRC16 high |
 | CRC_L | 1 byte | CRC16 low |
 
-CRC range: CMD + LEN + DATA  
+CRC range: CMD + LEN + DATA（注意：Head1、Head2不参与CRC运算）  
 CRC algorithm: CRC16-MODBUS  
 
 ---
