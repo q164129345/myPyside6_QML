@@ -1,117 +1,374 @@
-# Layer Contracts（各层约束）
+# Layer Contracts（系统分层约束）
+
+This document defines the architectural responsibilities and boundaries
+between system layers in the FOC Studio desktop application.
+
+These rules ensure the system remains:
+
+- maintainable
+- testable
+- scalable
+- predictable
+
+Violating these rules will cause architecture degradation.
 
 ---
 
-# 1 - Protocol Layer（协议层）
+# System Layer Overview
 
-Location:
-core.protocol.protocol_frame
+The system is organized into the following layers:
 
-Frame format (already defined):
-head1 head2 cmd datalen data[] crc16_h crc16_l
-0xAA  0xBB  1B  1B      N     1B      1B
+- UI Layer
+- Backend Facade Layer
+- Service Layer
+- Command Layer
+- Protocol Layer
+- Transport Layer
 
-CRC:
-- CRC16-MODBUS
-- Polynomial: 0x8005
-- Initial: 0xFFFF
-- Big-endian storage
+High-level receive flow:
 
-Rules:
-- All protocol functions must be pure（纯函数）
-- No QObject usage（不依赖Qt特性）
-- No state（无状态）
-- No buffer ownership（不拥有缓冲区）
-- No side effects（无副作用）
-- CRC must be verified before accepting frame（必须验证CRC）
-- Must support incremental parsing（必须支持增量解析,适应粘包和半包）
+MCU → Transport → Protocol → Service → BackendFacade → UI
 
-It is strictly responsible for:
-1. Frame construction (encode)
-2. attempt_parse_frame(data: bytes)
+Command flow:
 
-The protocol layer MUST NOT:
-- Store or manage buffers
-- Maintain state
-- Implement retry logic
-- Perform business logic dispatch
-- Access UI
-- Access transport
-- Raise runtime exceptions for malformed data
-All functions must be pure and side-effect free.
+UI → BackendFacade → Command → Protocol → Transport → MCU
+
+Each layer has **strict responsibilities and restrictions**.
 
 ---
 
-# 2 - Transport Layer（传输层）
+# 1 - Transport Layer（传输层）
 
 Location:
-core.transport.serial.mySerial
+
+core.transport
+
+Responsibilities:
+
+- Serial port communication
+- Raw byte transmission
+- Raw byte reception
+- Hardware communication management
 
 Characteristics:
-- Uses QSerialPort（使用 QSerialPort，串口通讯时）
-- Emits: dataReceived(bytes)（发出：dataReceived(bytes)）
-- No protocol parsing（不进行协议解析）
-- No business logic（不进行业务逻辑处理）
-- Lightweight only（仅轻量级）
-Transport is byte carrier only.（传输层仅负责字节传输）
 
-Never move parsing logic into transport.（切勿将解析逻辑移动到传输层）
+- Byte-stream oriented
+- IO layer only
+- Lightweight
+- No protocol awareness
+
+Typical output:
+
+dataReceived(bytes)
+
+Transport layer MUST NOT:
+
+- Parse protocol frames
+- Interpret payload data
+- Implement business logic
+- Dispatch commands
+- Manage parsing buffers
+- Maintain application state
+
+Transport layer acts as a **pure byte carrier**.
 
 ---
 
-# 3 - Service Layer（服务层）
+# 2 - Protocol Layer（协议层）
 
 Location:
-core.service.data_processor.DataProcessor
 
-Responsibilities:（责任）
-- Maintain persistent bytearray buffer（持久化字节数组缓冲区）
-- Append incoming bytes（追加接收字节）
-- Call protocol parsing function（调用协议解析函数）
-- Handle:（处理）
-    - valid frame（有效帧）
-    - discardable bytes（可丢弃字节）
-    - insufficient data（数据不足）
-- Remove consumed bytes safely（安全移除已消耗字节）
-- Dispatch parsed data via Qt signals（通过 Qt 信号分发解析后的数据）
+core.protocol
 
-Service layer is:
-- Stateful（有状态）
-- Deterministic（确定性）
-- Thread-safe (UI thread safe, no blocking)（线程安全，UI 线程安全，无阻塞）
-- Business logic only（仅业务逻辑）
-- Signal provider for UI（UI数据提供者）
-- State manager（状态管理者）
+Responsibilities:
 
-Service layer must NOT:
-- Direct function calls are prohibited between them（之间禁止直接函数调用）
-   - Use: Service -> BackendFacade -> Service
-- Perform blocking operations（执行阻塞操作）
-- Modify transport logic（修改传输逻辑）
+- Frame encoding
+- Frame validation
+- CRC verification
+- Frame extraction from byte sequences
+
+Example frame format:
+
+head1 head2 cmd datalen data[] crc16_h crc16_l  
+0xAA  0xBB  1B  1B      N     1B      1B
+
+CRC specification:
+
+- CRC16-MODBUS
+- Polynomial: 0x8005
+- Initial value: 0xFFFF
+- Big-endian storage
+
+Protocol layer characteristics:
+
+- Pure functions
+- Stateless
+- Deterministic
+- No side effects
+- No QObject usage
+- No dependency on Qt
+
+Protocol layer MUST NOT:
+
+- Store buffers
+- Maintain runtime state
+- Access transport
+- Access UI
+- Emit signals
+- Implement retry logic
+- Implement business dispatch
+
+Protocol layer operates only on **given input bytes**.
+
+Buffer management is handled by the service layer.
 
 ---
 
-# 4 - Data Processing Strategy（数据处理策略）
+# 3 - Command Layer（命令构造层）
 
-When implementing receive logic:
-1. Maintain:
-   self._buffer: bytearray
+Location:
 
-2. On dataReceived(bytes):
-   - append to buffer
-   - loop:
-       - try parse_frame_from_buffer()
-       - if frame valid:
-             process frame
-             remove consumed bytes
-       - if insufficient data:
-             break
-       - if invalid header:
-             discard one byte and continue
+core.command
 
-Never assume full frame arrives in one read.（切勿假设完整帧在一次读取中到达）
+Responsibilities:
 
-Must support:
-- Sticky packets（粘包）
-- Partial packets（半包）
-- Multiple frames in one read（一次读取多个帧）
+- Construct command payloads
+- Provide semantic command APIs
+- Hide protocol details from upper layers
+
+Examples of command types:
+
+- enable motor
+- set motor speed
+- clear fault
+- configure parameters
+
+Command layer characteristics:
+
+- Stateless
+- Pure construction logic
+- No IO operations
+
+Command layer MUST NOT:
+
+- Access UI
+- Access transport
+- Parse incoming frames
+- Maintain runtime state
+- Emit Qt signals
+
+Command layer prepares **command payloads only**.
+
+Actual transmission is handled by other layers.
+
+---
+
+# 4 - Service Layer（业务服务层）
+
+Location:
+
+core.service
+
+Service layer is the **core business logic layer**.
+
+Responsibilities include:
+
+Frame dispatching
+
+- Receive parsed frames
+- Dispatch frames based on command ID
+- Route frames to proper processing logic
+
+Data processing
+
+- Interpret payload data
+- Maintain runtime state
+- Update telemetry values
+- Emit signals for UI updates
+
+State management
+
+- Track device status
+- Maintain runtime variables
+- Provide processed information to upper layers
+
+Service layer characteristics:
+
+- Stateful
+- Deterministic
+- Non-blocking
+- Qt-aware (signals allowed)
+
+Service layer MUST NOT:
+
+- Perform serial communication
+- Implement protocol encoding
+- Perform blocking IO
+- Access UI directly
+
+Service layer may interact with:
+
+- Protocol layer
+- Transport layer
+- BackendFacade layer
+
+Service layer is responsible for **system runtime state**.
+
+---
+
+# 5 - Backend Facade Layer（系统门面层）
+
+Location:
+
+core
+
+BackendFacade is the **single entry point between UI and backend system**.
+
+Responsibilities:
+
+- Coordinate backend subsystems
+- Expose high-level APIs to UI
+- Manage system lifecycle
+- Connect signals between layers
+
+Example responsibilities:
+
+- connect serial port
+- disconnect serial port
+- send control commands
+- provide system status to UI
+
+Facade characteristics:
+
+- Thin coordination layer
+- No heavy business logic
+
+BackendFacade MUST NOT:
+
+- Parse protocol frames
+- Implement transport logic
+- Duplicate service functionality
+
+BackendFacade exists to **simplify UI interaction**.
+
+---
+
+# 6 - UI Layer（界面层）
+
+Location:
+
+ui
+
+Responsibilities:
+
+- User interaction
+- Data visualization
+- User command input
+
+UI communicates only with:
+
+BackendFacade
+
+UI MUST NOT:
+
+- Access transport
+- Access protocol
+- Parse frames
+- Implement business logic
+- Maintain application state
+
+UI is strictly a **presentation layer**.
+
+---
+
+# Layer Interaction Rules
+
+Allowed interactions:
+
+UI → BackendFacade
+
+BackendFacade → Service  
+BackendFacade → Command
+
+Service → Protocol  
+Service → Transport
+
+Command → Protocol
+
+Transport → OS / Serial Driver
+
+---
+
+Forbidden interactions:
+
+UI → Protocol  
+UI → Transport
+
+Protocol → UI  
+Protocol → Transport
+
+Command → Transport
+
+Transport → Business Logic
+
+These rules prevent architectural coupling.
+
+---
+
+# Data Receive Strategy（数据接收策略）
+
+Receiving data from the MCU must follow **incremental parsing**.
+
+Typical workflow:
+
+1. Transport receives bytes from serial port
+2. Transport emits raw byte stream
+3. Service layer appends data to internal buffer
+4. Protocol layer attempts frame extraction
+5. Service processes valid frames
+
+Pseudo workflow:
+
+append incoming bytes → buffer
+
+loop:
+
+try parse frame
+
+if frame valid  
+ process frame  
+ remove consumed bytes
+
+if insufficient data  
+ break
+
+if invalid header  
+ discard one byte
+
+The system must support:
+
+- Sticky packets
+- Partial packets
+- Multiple frames in one read
+
+Never assume that a full frame arrives in a single read.
+
+---
+
+# Architectural Principles
+
+The system follows these principles:
+
+- Single Responsibility
+- Layer Isolation
+- Stateless Protocol Logic
+- Transport as Byte Carrier
+- Service as Business Core
+- Facade as UI Gateway
+
+These principles guarantee:
+
+- clean architecture
+- maintainable code
+- predictable behavior
+- scalable system design
