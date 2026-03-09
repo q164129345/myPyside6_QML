@@ -35,6 +35,26 @@ OTA upgrade is NOT included in this phase.（OTA 升级不包含在此阶段）
 
 ---
 
+## Encoding Rule（编码规则）
+
+All source files in this project must use UTF-8 encoding.
+
+Rules:
+- Python source files must be UTF-8
+- Markdown documentation must be UTF-8
+- QML files must be UTF-8
+- Protocol documentation must be UTF-8
+
+Forbidden:
+- GBK
+- GB2312
+- ANSI
+- UTF-16
+
+When generating new files, the AI must always assume UTF-8 encoding.
+
+---
+
 ## Current Project Architecture（当前项目架构）
 
 All outputs must strictly integrate into:
