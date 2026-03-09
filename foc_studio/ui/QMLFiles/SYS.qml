@@ -21,7 +21,6 @@ Rectangle {
         spacing: 20
 
         Text {
-            text: "SYS 系统功能页面"
             font.pixelSize: 24
             color: "#2c3e50"
             Layout.alignment: Qt.AlignHCenter
