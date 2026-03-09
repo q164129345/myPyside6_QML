@@ -15,6 +15,10 @@ Rectangle {
     // 遥测数据（由 Connections 更新）
     property int  currentSpeed:   0
     property real currentCurrent: 0.0
+    property real motorTemp:      0.0
+    property real mosTemp:        0.0
+    property int  iqCurrent:      0
+    property int  idCurrent:      0
     property int  errorCode:      0
     property int  enableState:    0
 
@@ -234,6 +238,13 @@ Rectangle {
                 spacing: 12
 
                 TelemetryRow {
+                    label: "使能状态"
+                    range: "(0/1)"
+                    value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
+                    unit:  ""
+                }
+
+                TelemetryRow {
                     label: "转速"
                     range: "(-3000~3000)"
                     value: root.isSerialConnected ? root.currentSpeed.toString() : "--"
@@ -245,6 +256,34 @@ Rectangle {
                     range: "(0~30.0)"
                     value: root.isSerialConnected ? root.currentCurrent.toFixed(2) : "--"
                     unit:  "A"
+                }
+
+                TelemetryRow {
+                    label: "电机温度"
+                    range: "(0.1 C)"
+                    value: root.isSerialConnected ? root.motorTemp.toFixed(1) : "--"
+                    unit:  "C"
+                }
+
+                TelemetryRow {
+                    label: "MOS温度"
+                    range: "(0.1 C)"
+                    value: root.isSerialConnected ? root.mosTemp.toFixed(1) : "--"
+                    unit:  "C"
+                }
+
+                TelemetryRow {
+                    label: "Iq电流分量"
+                    range: "(int16)"
+                    value: root.isSerialConnected ? root.iqCurrent.toString() : "--"
+                    unit:  ""
+                }
+
+                TelemetryRow {
+                    label: "Id电流分量"
+                    range: "(int16)"
+                    value: root.isSerialConnected ? root.idCurrent.toString() : "--"
+                    unit:  ""
                 }
             }
         }
@@ -286,6 +325,9 @@ Rectangle {
 
         function onSpeedUpdated(rpm)         { root.currentSpeed   = rpm   }
         function onMotorCurrentUpdated(amps) { root.currentCurrent = amps  }
+        function onMotorTempUpdated(temp)    { root.motorTemp      = temp  }
+        function onMosTempUpdated(temp)      { root.mosTemp        = temp  }
+        function onIqIdUpdated(iq, idValue)  { root.iqCurrent      = iq; root.idCurrent = idValue }
         function onErrorCodeUpdated(code)    { root.errorCode      = code  }
         function onEnableStateUpdated(state) { root.enableState    = state }
     }
