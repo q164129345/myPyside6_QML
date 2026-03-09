@@ -260,16 +260,16 @@ Rectangle {
 
                 TelemetryRow {
                     label: "电机温度"
-                    range: "(0.1 C)"
+                    range: "(0.1 ℃)"
                     value: root.isSerialConnected ? root.motorTemp.toFixed(1) : "--"
-                    unit:  "C"
+                    unit:  "℃"
                 }
 
                 TelemetryRow {
                     label: "MOS温度"
-                    range: "(0.1 C)"
+                    range: "(0.1 ℃)"
                     value: root.isSerialConnected ? root.mosTemp.toFixed(1) : "--"
-                    unit:  "C"
+                    unit:  "℃"
                 }
 
                 TelemetryRow {
