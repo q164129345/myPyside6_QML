@@ -197,7 +197,7 @@ Rectangle {
 
                 // 中：数值显示框
                 Rectangle {
-                    implicitWidth: 140
+                    implicitWidth: 90
                     implicitHeight: 28
                     radius: 4
                     color: "#e8f4fd"
