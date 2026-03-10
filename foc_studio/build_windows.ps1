@@ -5,80 +5,69 @@ $pythonRuntime = (& $pythonExe -c "import sys; print(sys.executable)").Trim()
 $pysideDir = (& $pythonRuntime -c "from pathlib import Path; import PySide6; print(Path(PySide6.__file__).resolve().parent)").Trim()
 
 try {
-    & $pythonExe -c "import PySide6" | Out-Null
+    & $pythonRuntime -c "import PySide6" | Out-Null
 } catch {
-    throw "PySide6 is not installed in the active Python environment: $pythonExe"
+    throw "PySide6 is not installed in the active Python environment: $pythonRuntime"
 }
 
-if (-not (Get-Command pyside6-deploy -ErrorAction SilentlyContinue)) {
-    throw "pyside6-deploy was not found in PATH."
+try {
+    & $pythonRuntime -m nuitka --version | Out-Null
+} catch {
+    throw "Nuitka is not installed in the active Python environment: $pythonRuntime"
 }
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$specFile = Join-Path $projectRoot "pysidedeploy.spec"
 $outputDir = Join-Path $projectRoot "deployment"
-$rawAppDir = Join-Path $outputDir "foc_studio.dist"
-$rawNuitkaDir = Join-Path $outputDir "main.dist"
+$rawDistDir = Join-Path $outputDir "main.dist"
+$rawBuildDir = Join-Path $outputDir "main.build"
 $appDir = Join-Path $outputDir "foc_studio"
 $sourceUiDir = Join-Path $projectRoot "ui"
 $targetUiDir = Join-Path $appDir "ui"
 $sourceQtQmlDir = Join-Path $pysideDir "qml"
-$targetQtQmlDir = Join-Path $appDir "PySide6\\qml"
+$targetQtQmlDir = Join-Path $appDir "PySide6\qml"
+$iconPath = Join-Path $pysideDir "scripts\deploy_lib\pyside_icon.ico"
 
-function Invoke-NuitkaFallback {
-    Write-Host "pyside6-deploy did not leave a usable output directory. Falling back to direct Nuitka build..."
+Write-Host "Using Python: $pythonRuntime"
+Write-Host "Building Windows standalone package with Nuitka..."
+
+Push-Location $projectRoot
+try {
+    if (Test-Path $rawDistDir) {
+        Remove-Item $rawDistDir -Recurse -Force
+    }
+    if (Test-Path $rawBuildDir) {
+        Remove-Item $rawBuildDir -Recurse -Force
+    }
+    if (Test-Path $appDir) {
+        Remove-Item $appDir -Recurse -Force
+    }
 
     & $pythonRuntime -m nuitka `
         main.py `
         --follow-imports `
         --enable-plugin=pyside6 `
-        --output-dir=deployment `
+        --output-dir=$outputDir `
         --noinclude-qt-translations `
         --static-libpython=no `
         --mingw64 `
         --assume-yes-for-downloads `
         --windows-console-mode=disable `
         --standalone `
-        --include-qt-plugins=platforminputcontexts,qmllint,qmltooling
-}
-
-Write-Host "Using Python: $pythonRuntime"
-Write-Host "Building Windows standalone package..."
-
-Push-Location $projectRoot
-try {
-    & pyside6-deploy `
-        -c $specFile `
-        --extra-ignore-dirs ".agents,.vscode,deployment,dist,__pycache__" `
-        -f
+        --remove-output `
+        --disable-cache=ccache `
+        --include-qt-plugins=platforminputcontexts,qmllint,qmltooling `
+        --windows-icon-from-ico=$iconPath
 } finally {
     Pop-Location
 }
 
-if (-not (Test-Path $rawAppDir) -and -not (Test-Path $rawNuitkaDir)) {
-    Push-Location $projectRoot
-    try {
-        Invoke-NuitkaFallback
-    } finally {
-        Pop-Location
-    }
+if (-not (Test-Path $rawDistDir)) {
+    throw "Build finished but the expected distribution folder was not found: $rawDistDir"
 }
 
-if (-not (Test-Path $rawAppDir) -and (Test-Path $rawNuitkaDir)) {
-    $rawAppDir = $rawNuitkaDir
-}
-
-if (-not (Test-Path $rawAppDir)) {
-    throw "Build finished but no deployment folder was found under $outputDir"
-}
-
-if (Test-Path $appDir) {
-    Remove-Item $appDir -Recurse -Force
-}
-Move-Item $rawAppDir $appDir
+Move-Item $rawDistDir $appDir
 
 $generatedExe = Join-Path $appDir "main.exe"
-$finalExe = Join-Path $appDir "foc_studio.exe"
 if (Test-Path $generatedExe) {
     Rename-Item $generatedExe "foc_studio.exe"
 }
@@ -100,6 +89,10 @@ Get-ChildItem $pysideDir -Filter "Qt6*.dll" -File | ForEach-Object {
 $softwareRenderer = Join-Path $pysideDir "opengl32sw.dll"
 if (Test-Path $softwareRenderer) {
     Copy-Item $softwareRenderer $appDir -Force
+}
+
+if (Test-Path $rawBuildDir) {
+    Remove-Item $rawBuildDir -Recurse -Force
 }
 
 if (-not (Test-Path (Join-Path $appDir "foc_studio.exe"))) {
