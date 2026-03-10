@@ -1,2 +1,11 @@
 *__pycache__/
 *.pyc
+deployment/
+deployment_debug/
+build/
+dist/
+*.build
+*.dist
+*.onefile-build
+*.spec.py
+nuitka-crash-report.xml
