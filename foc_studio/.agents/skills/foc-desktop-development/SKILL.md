@@ -86,7 +86,7 @@ No new top-level directories allowed.（不允许新增顶级目录）
 ---
 
 ## Windows Packaging（Windows 发布）
-
+- Do not perform compilation unless the user asks you to.（除非用户要求，否则不要执行编译）
 - Use the repository-root `build_windows.ps1` script for Windows `.exe` packaging.（在项目根目录，使用PowerShell终端执行'./build_windows.ps1'就能编译.exe应用程序）
 - Treat `build_windows.ps1` as the single source of truth for packaging flags, runtime file collection, and output layout.
 - Deliver the whole `deployment/foc_studio/` directory to Windows users.
