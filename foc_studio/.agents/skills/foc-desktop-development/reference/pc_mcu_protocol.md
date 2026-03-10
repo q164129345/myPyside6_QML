@@ -88,7 +88,7 @@ Note:
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 1 | uint8_t | 使能状态（0：未使能，1：使能） |
-| **DATA_LEN** | 2 |  |  |
+| **DATA_LEN** | 1 |  |  |
 
 ### CMD 0x68 - Error Code(错误码)
 Direction: MCU → PC  

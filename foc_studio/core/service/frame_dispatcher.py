@@ -87,7 +87,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  2 bytes  int16  当前转速 (rpm), Big-Endian
         """
-        if frame.datalen < 2:
+        if frame.datalen != 2:
             return
         (speed,) = struct.unpack_from('>h', frame.data, 0)
         # print(f"[FrameDispatcher] Speed Feedback: {speed} rpm", flush=True)  # Debug log
@@ -102,7 +102,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  2 bytes  int16  当前温度（单位 0.1℃），转换后发出 float ℃
         """
-        if frame.datalen < 2:
+        if frame.datalen != 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
         #print(f"[FrameDispatcher] Motor Temperature: {raw / 10.0} ℃", flush=True)  # Debug log  
@@ -117,7 +117,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  2 bytes  int16  当前温度（单位 0.1℃），转换后发出 float ℃
         """
-        if frame.datalen < 2:
+        if frame.datalen != 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
         # print(f"[FrameDispatcher] MOS Temperature: {raw / 10.0} ℃", flush=True)  # Debug log
@@ -132,7 +132,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  1 byte  uint8  使能状态（0：未使能，1：使能）
         """
-        if frame.datalen < 1:
+        if frame.datalen != 1:
             return
         state = frame.data[0]
         # print(f"[FrameDispatcher] Motor Enable State: {state}", flush=True)  # Debug log
@@ -147,7 +147,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  2 bytes  uint16  错误码，Big-Endian
         """
-        if frame.datalen < 2:
+        if frame.datalen != 2:
             return
         (code,) = struct.unpack_from('>H', frame.data, 0)
         # print(f"[FrameDispatcher] Error Code: {code}", flush=True)  # Debug log
@@ -163,7 +163,7 @@ class FrameDispatcher(QObject):
             Offset 0  2 bytes  int16  Iq 电流分量, Big-Endian
             Offset 2  2 bytes  int16  Id 电流分量, Big-Endian
         """
-        if frame.datalen < 4:
+        if frame.datalen != 4:
             return
         iq, id_ = struct.unpack_from('>hh', frame.data, 0)
         # print(f"[FrameDispatcher] Iq={iq}  Id={id_}", flush=True)  # Debug log
@@ -178,7 +178,7 @@ class FrameDispatcher(QObject):
         Payload 格式:
             Offset 0  2 bytes  int16  电流值（单位 0.1A），转换后发出 float A
         """
-        if frame.datalen < 2:
+        if frame.datalen != 2:
             return
         (raw,) = struct.unpack_from('>h', frame.data, 0)
         # print(f"[FrameDispatcher] Motor Current: {raw / 10.0} A", flush=True)  # Debug log
