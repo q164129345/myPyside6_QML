@@ -111,17 +111,19 @@ Note:
 | 0 | 2 | uint16_t | 错误码 |
 | **DATA_LEN** | 2 |  |  |
 
-### CMD 0x69 - Iq、Id（Iq、Id电流分量）
+### CMD 0x69 - Iq、Id与Uq、Ud
 Direction: MCU → PC  
-Description:  Iq分量、Id分量  
+Description:  Iq分量、Id分量、Uq分量、Ud分量
 Frequence: 50ms/次
-Note: 
+Note: SimpleFOC源码的FOCMotor.current变量与FOCMotor.voltage变量
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 2 | int16_t | Iq电流分量 |
 | 2 | 2 | int16_t | Id电流分量 |
-| **DATA_LEN** | 4 |  |  |
+| 4 | 2 | int16_t | Uq电压分量 |
+| 6 | 2 | int16_t | Ud电压分量 |
+| **DATA_LEN** | 8 |  |  |
 
 ### CMD 0x6A - Motor Current
 Direction: MCU → PC  
@@ -133,8 +135,5 @@ Note:
 |------|------|------|-------------|
 | 0 | 2 | int16_t | 电流值 |
 | **DATA_LEN** | 2 |  |  |
-
-
-
 
 ---
