@@ -11,7 +11,7 @@ Rectangle {
 
     // 串口波特率
     readonly property int baudRate: 460800
-    readonly property string softwareVersion: "v0.0.0.1"
+    readonly property string softwareVersion: "v0.0.0.2"
 
     // 接收串口连接状态
     property bool isSerialConnected: false
