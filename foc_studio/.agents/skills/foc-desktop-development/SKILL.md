@@ -21,6 +21,11 @@ It IS:
 
 ---
 
+## Code Search Rule
+AI must never search or analyze the `deployment/` directory. It contains compiled artifacts, not source code.
+
+---
+
 ## Primary Objectives (Phase 1)（主要目标，第 1 阶段）
 
 The system must support:
