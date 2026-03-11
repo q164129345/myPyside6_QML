@@ -44,6 +44,16 @@ Note: MCU在2S内收不到指令，会自动让电机停下来。
 | 1 | 2 | int16 | 目标转速 (rpm) |
 | **DATA_LEN** | 3 |  |  |
 
+### CMD 0x02 - PC Heartbeat
+Direction: PC → MCU
+Description: PC在线心跳，用于维持MCU向PC发送数据的状态。
+Frequence: 1000ms/次
+Timeout: MCU在5秒内未收到该命令，将停止发送所有MCU→PC的数据帧。
+Note:该命令 没有DATA,仅用于保持连接,MCU收到就刷新计时器。
+| Offset       | Size | Type | Description |
+| ------------ | ---- | ---- | ----------- |
+| **DATA_LEN** | 0    |      | 无payload    |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
