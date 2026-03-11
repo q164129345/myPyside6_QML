@@ -115,8 +115,9 @@ Note:
 Direction: MCU → PC  
 Description:  Iq分量、Id分量、Uq分量、Ud分量
 Frequence: 50ms/次
-Note: SimpleFOC源码的FOCMotor.current变量与FOCMotor.voltage变量
-
+Note: 
+- SimpleFOC源码的FOCMotor.current变量与FOCMotor.voltage变量
+- Iq、Id、Uq、Ud都是float类型，协议是int16_t变量(-32768 ~ 32768)。变量类型转换：float变量 * 1000 -> int16变量
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 2 | int16_t | Iq电流分量 |
