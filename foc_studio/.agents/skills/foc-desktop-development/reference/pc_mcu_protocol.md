@@ -115,7 +115,7 @@ Note:
 
 ### CMD 0x6A - Motor Current
 Direction: MCU → PC  
-Description:  电机实时的电流值(单位0.1A)  
+Description:  电机实时的电流值(单位0.001A)  
 Frequence: 50ms/次  
 Note: 
 
