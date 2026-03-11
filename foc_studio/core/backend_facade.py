@@ -4,6 +4,7 @@ from core.transport.serial import mySerial
 from core.service.data_processor import DataProcessor
 from core.service.frame_dispatcher import FrameDispatcher
 from core.command.motor_command import build_motor_control
+from core.command.pc_heartbeat_command import build_pc_heartbeat
 
 
 class BackendFacade(QObject):
@@ -38,10 +39,14 @@ class BackendFacade(QObject):
         self._motor_enable: int = 0
         self._motor_target_speed: int = 0
 
-        # 周期性发送定时器：协议要求 500 ms/次，MCU 2 s 超时自动停机
+        # Periodic motor command timer: CMD 0x01 is sent every 500 ms while enabled.
         self._motor_cmd_timer = QTimer(self)
         self._motor_cmd_timer.setInterval(500)
         self._motor_cmd_timer.timeout.connect(self._send_motor_cmd)
+
+        self._heartbeat_timer = QTimer(self)
+        self._heartbeat_timer.setInterval(1000)
+        self._heartbeat_timer.timeout.connect(self._send_heartbeat)
 
         # Transport → Service
         self._serial.dataReceived.connect(self._processor.process_data)
@@ -59,7 +64,7 @@ class BackendFacade(QObject):
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
 
         # 将 Transport 信号转发至 Facade（供 QML 订阅）
-        self._serial.connectionStatusChanged.connect(self.connectionStatusChanged)
+        self._serial.connectionStatusChanged.connect(self._on_connection_status_changed)
         self._serial.isConnectedChanged.connect(self.isConnectedChanged)
         self._serial.portsListChanged.connect(self.portsListChanged)
 
@@ -81,6 +86,7 @@ class BackendFacade(QObject):
 
     @Slot()
     def disconnectSerial(self) -> None:
+        self._stop_heartbeat()
         self._serial.closePort()
 
     @Slot()
@@ -128,3 +134,23 @@ class BackendFacade(QObject):
         """内部：编码 CMD 0x01 帧并通过 Transport 发送。"""
         frame = build_motor_control(self._motor_enable, self._motor_target_speed)
         self._serial.sendData(frame)
+
+    def _send_heartbeat(self) -> None:
+        """Internal: encode CMD 0x02 heartbeat frame and send it via Transport."""
+        self._serial.sendData(build_pc_heartbeat())
+
+    def _start_heartbeat(self) -> None:
+        if not self._heartbeat_timer.isActive():
+            self._heartbeat_timer.start()
+
+    def _stop_heartbeat(self) -> None:
+        if self._heartbeat_timer.isActive():
+            self._heartbeat_timer.stop()
+
+    @Slot(bool, str)
+    def _on_connection_status_changed(self, connected: bool, message: str) -> None:
+        if connected:
+            self._start_heartbeat()
+        else:
+            self._stop_heartbeat()
+        self.connectionStatusChanged.emit(connected, message)
