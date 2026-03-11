@@ -14,8 +14,10 @@ Rectangle {
     property real currentCurrent: 0.0
     property real motorTemp: 0.0
     property real mosTemp: 0.0
-    property int iqCurrent: 0
-    property int idCurrent: 0
+    property real iqCurrent: 0.0
+    property real idCurrent: 0.0
+    property real uqVoltage: 0.0
+    property real udVoltage: 0.0
     property int errorCode: 0
     property int enableState: 0
 
@@ -283,30 +285,44 @@ Rectangle {
 
                 TelemetryRow {
                     label: "电机温度"
-                    range: "(0.1 °C)"
+                    range: "(0.1 ℃)"
                     value: root.isSerialConnected ? root.motorTemp.toFixed(1) : "--"
-                    unit: "°C"
+                    unit: "℃"
                 }
 
                 TelemetryRow {
                     label: "MOS温度"
-                    range: "(0.1 °C)"
+                    range: "(0.1 ℃)"
                     value: root.isSerialConnected ? root.mosTemp.toFixed(1) : "--"
-                    unit: "°C"
+                    unit: "℃"
                 }
 
                 TelemetryRow {
                     label: "Iq电流分量"
-                    range: "(int16)"
-                    value: root.isSerialConnected ? root.iqCurrent.toString() : "--"
-                    unit: ""
+                    range: "(-32.768~32.767)"
+                    value: root.isSerialConnected ? root.iqCurrent.toFixed(3) : "--"
+                    unit: "A"
                 }
 
                 TelemetryRow {
                     label: "Id电流分量"
-                    range: "(int16)"
-                    value: root.isSerialConnected ? root.idCurrent.toString() : "--"
-                    unit: ""
+                    range: "(-32.768~32.767)"
+                    value: root.isSerialConnected ? root.idCurrent.toFixed(3) : "--"
+                    unit: "A"
+                }
+
+                TelemetryRow {
+                    label: "Uq电压分量"
+                    range: "(-32.768~32.767)"
+                    value: root.isSerialConnected ? root.uqVoltage.toFixed(3) : "--"
+                    unit: "V"
+                }
+
+                TelemetryRow {
+                    label: "Ud电压分量"
+                    range: "(-32.768~32.767)"
+                    value: root.isSerialConnected ? root.udVoltage.toFixed(3) : "--"
+                    unit: "V"
                 }
             }
         }
@@ -348,7 +364,12 @@ Rectangle {
         function onMotorCurrentUpdated(amps) { root.currentCurrent = amps }
         function onMotorTempUpdated(temp)    { root.motorTemp = temp }
         function onMosTempUpdated(temp)      { root.mosTemp = temp }
-        function onIqIdUpdated(iq, idValue)  { root.iqCurrent = iq; root.idCurrent = idValue }
+        function onDqComponentsUpdated(iq, idValue, uq, ud) {
+            root.iqCurrent = iq
+            root.idCurrent = idValue
+            root.uqVoltage = uq
+            root.udVoltage = ud
+        }
         function onErrorCodeUpdated(code)    { root.errorCode = code }
         function onEnableStateUpdated(state) { root.enableState = state }
     }
