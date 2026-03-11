@@ -277,7 +277,7 @@ Rectangle {
                 TelemetryRow {
                     label: "电流"
                     range: "(0~30.0)"
-                    value: root.isSerialConnected ? root.currentCurrent.toFixed(2) : "--"
+                    value: root.isSerialConnected ? root.currentCurrent.toFixed(3) : "--"
                     unit: "A"
                 }
 
