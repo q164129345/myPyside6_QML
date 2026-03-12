@@ -54,6 +54,19 @@ Note:该命令 没有DATA,仅用于保持连接,MCU收到就刷新计时器。
 | ------------ | ---- | ---- | ----------- |
 | **DATA_LEN** | 0    |      | 无payload    |
 
+
+### CMD 0x03 - Query Software Version
+Direction: PC -> MCU
+Description: PC actively queries the MCU software version.
+Frequence: On demand (recommended once after connection; manual re-query is allowed)
+Note:
+- MCU must not upload software version periodically; only respond after CMD 0x03.
+- No DATA payload.
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | No payload |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -136,5 +149,23 @@ Note:
 |------|------|------|-------------|
 | 0 | 2 | int16_t | 电流值 |
 | **DATA_LEN** | 2 |  |  |
+
+
+### CMD 0x6B - Software Version Response
+Direction: MCU -> PC
+Description: Response frame for CMD 0x03 software version query.
+Frequence: Passive response only (send only after receiving CMD 0x03)
+Note:
+- MCU must not proactively upload this frame.
+- Version format: main.sub.mini.fixed
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8 | mainVersion |
+| 1 | 1 | uint8 | subVersion |
+| 2 | 1 | uint8 | miniVersion |
+| 3 | 1 | uint8 | fixed/Revision |
+| **DATA_LEN** | 4 |  |  |
+
 
 ---
