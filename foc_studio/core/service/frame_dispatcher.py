@@ -6,13 +6,14 @@
   - 将 payload 解码为业务语义信号
 
 协议支持（MCU -> PC）：
-  CMD 0x64  转速反馈       int16, rpm
-  CMD 0x65  电机温度       int16, 单位 0.1℃
-  CMD 0x66  MOS 温度       int16, 单位 0.1℃
-  CMD 0x67  电机使能状态   uint8
-  CMD 0x68  错误码         uint16
-  CMD 0x69  Iq/Id/Uq/Ud    4 * int16，按 1/1000 还原为 float
-  CMD 0x6A  电机电流       int16, 单位 0.001A
+  CMD 0x64  转速反馈            int16, rpm
+  CMD 0x65  电机温度            int16, 单位 0.1℃
+  CMD 0x66  MOS 温度            int16, 单位 0.1℃
+  CMD 0x67  电机使能状态        uint8
+  CMD 0x68  软件版本响应         4 * uint8 (main/sub/mini/fixed)
+  CMD 0x69  Iq/Id/Uq/Ud         4 * int16，按 1/1000 还原为 float
+  CMD 0x6A  电机电流            int16, 单位 0.001A
+  CMD 0x6C  错误码              uint16
 """
 
 import struct
@@ -26,9 +27,10 @@ CMD_SPEED_FEEDBACK: int = 0x64
 CMD_MOTOR_TEMPERATURE: int = 0x65
 CMD_MOS_TEMPERATURE: int = 0x66
 CMD_MOTOR_ENABLE_STATE: int = 0x67
-CMD_ERROR_CODE: int = 0x68
+CMD_SOFTWARE_VERSION: int = 0x68
 CMD_DQ_COMPONENTS: int = 0x69
 CMD_MOTOR_CURRENT: int = 0x6A
+CMD_ERROR_CODE: int = 0x6C
 
 
 class FrameDispatcher(QObject):
@@ -38,6 +40,7 @@ class FrameDispatcher(QObject):
     motorTempUpdated = Signal(float)                  # 电机温度 ℃
     mosTempUpdated = Signal(float)                    # MOS 温度 ℃
     enableStateUpdated = Signal(int)                  # 使能状态 0/1
+    mcuSoftwareVersionUpdated = Signal(int, int, int, int)  # main, sub, mini, fixed
     errorCodeUpdated = Signal(int)                    # 错误码
     dqComponentsUpdated = Signal(float, float, float, float)  # Iq, Id, Uq, Ud
     motorCurrentUpdated = Signal(float)               # 电机电流 A
@@ -49,9 +52,10 @@ class FrameDispatcher(QObject):
             CMD_MOTOR_TEMPERATURE: self._handle_motor_temperature,
             CMD_MOS_TEMPERATURE: self._handle_mos_temperature,
             CMD_MOTOR_ENABLE_STATE: self._handle_motor_enable_state,
-            CMD_ERROR_CODE: self._handle_error_code,
+            CMD_SOFTWARE_VERSION: self._handle_software_version,
             CMD_DQ_COMPONENTS: self._handle_dq_components,
             CMD_MOTOR_CURRENT: self._handle_motor_current,
+            CMD_ERROR_CODE: self._handle_error_code,
         }
 
     @Slot(object)
@@ -88,8 +92,19 @@ class FrameDispatcher(QObject):
             return
         self.enableStateUpdated.emit(frame.data[0])
 
+    def _handle_software_version(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x68：软件版本 main/sub/mini/fixed。"""
+        if frame.datalen != 4:
+            return
+        self.mcuSoftwareVersionUpdated.emit(
+            frame.data[0],
+            frame.data[1],
+            frame.data[2],
+            frame.data[3],
+        )
+
     def _handle_error_code(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x68：错误码。"""
+        """解码 CMD 0x6C：错误码。"""
         if frame.datalen != 2:
             return
         (code,) = struct.unpack_from(">H", frame.data, 0)
@@ -99,7 +114,6 @@ class FrameDispatcher(QObject):
         """解码 CMD 0x69：Iq/Id/Uq/Ud，按 1/1000 转换为工程量。"""
         if frame.datalen != 8:
             return
-
         raw_iq, raw_id, raw_uq, raw_ud = struct.unpack_from(">hhhh", frame.data, 0)
         self.dqComponentsUpdated.emit(
             raw_iq / 1000.0,
@@ -114,3 +128,4 @@ class FrameDispatcher(QObject):
             return
         (raw,) = struct.unpack_from(">h", frame.data, 0)
         self.motorCurrentUpdated.emit(raw / 1000.0)
+

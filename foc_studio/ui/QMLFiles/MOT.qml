@@ -20,6 +20,7 @@ Rectangle {
     property real udVoltage: 0.0
     property int errorCode: 0
     property int enableState: 0
+    property string mcuSoftwareVersion: "0.0.0.0"
 
     component InputField: Rectangle {
         id: control
@@ -263,6 +264,13 @@ Rectangle {
                 spacing: 12
 
                 TelemetryRow {
+                    label: "\u8f6f\u4ef6\u7248\u672c"
+                    range: "(main.sub.mini.fixed)"
+                    value: root.mcuSoftwareVersion
+                    unit: ""
+                }
+
+                TelemetryRow {
                     label: "使能状态"
                     range: "(0/1)"
                     value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
@@ -372,5 +380,6 @@ Rectangle {
         }
         function onErrorCodeUpdated(code)    { root.errorCode = code }
         function onEnableStateUpdated(state) { root.enableState = state }
+        function onMcuSoftwareVersionUpdated(versionText) { root.mcuSoftwareVersion = versionText }
     }
 }
