@@ -26,6 +26,19 @@ AI must never search or analyze the `deployment/` directory. It contains compile
 
 ---
 
+## Comment Language Preservation Rule（注释语言保留规则）
+
+AI must **NEVER** change the language of existing comments or docstrings.
+
+- If a comment is written in Chinese（中文）, it must remain in Chinese after any edit.
+- If a comment is written in English, it must remain in English after any edit.
+- This rule applies to ALL files: `.py`, `.qml`, `.md`, and any other file in this project.
+- When modifying a file, only touch the lines that are necessary for the task. Do NOT rewrite, reformat, or translate untouched lines.
+
+Translating Chinese comments to English (or vice versa) is a **strict violation** of this rule, even if the surrounding code is being changed.
+
+---
+
 ## Primary Objectives (Phase 1)（主要目标，第 1 阶段）
 
 The system must support:
