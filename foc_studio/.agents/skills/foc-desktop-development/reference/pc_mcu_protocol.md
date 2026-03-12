@@ -113,16 +113,21 @@ Note:
 | 0 | 1 | uint8_t | 使能状态（0：未使能，1：使能） |
 | **DATA_LEN** | 1 |  |  |
 
-### CMD 0x68 - Error Code(错误码)
-Direction: MCU → PC  
-Description:  错误码
-Frequence: 1000ms/次  
-Note: 
+### CMD 0x68 - Software Version Response
+Direction: MCU -> PC
+Description: Response frame for CMD 0x03 software version query.
+Frequence: Passive response only (send only after receiving CMD 0x03)
+Note:
+- MCU must not proactively upload this frame.
+- Version format: main.sub.mini.fixed
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| 0 | 2 | uint16_t | 错误码 |
-| **DATA_LEN** | 2 |  |  |
+| 0 | 1 | uint8 | mainVersion |
+| 1 | 1 | uint8 | subVersion |
+| 2 | 1 | uint8 | miniVersion |
+| 3 | 1 | uint8 | fixed/Revision |
+| **DATA_LEN** | 4 |  |  |
 
 ### CMD 0x69 - Iq、Id与Uq、Ud
 Direction: MCU → PC  
@@ -150,22 +155,16 @@ Note:
 | 0 | 2 | int16_t | 电流值 |
 | **DATA_LEN** | 2 |  |  |
 
-
-### CMD 0x6B - Software Version Response
-Direction: MCU -> PC
-Description: Response frame for CMD 0x03 software version query.
-Frequence: Passive response only (send only after receiving CMD 0x03)
-Note:
-- MCU must not proactively upload this frame.
-- Version format: main.sub.mini.fixed
+### CMD 0x6C - Error Code
+Direction: MCU → PC  
+Description:  错误码
+Frequence: 1000ms/次  
+Note: 
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| 0 | 1 | uint8 | mainVersion |
-| 1 | 1 | uint8 | subVersion |
-| 2 | 1 | uint8 | miniVersion |
-| 3 | 1 | uint8 | fixed/Revision |
-| **DATA_LEN** | 4 |  |  |
+| 0 | 2 | uint16_t | 错误码 |
+| **DATA_LEN** | 2 |  |  |
 
 
 ---
