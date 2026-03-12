@@ -39,6 +39,24 @@ Translating Chinese comments to English (or vice versa) is a **strict violation*
 
 ---
 
+## Code Comment Requirement（代码注释要求）
+
+When AI writes or modifies code, it **MUST** add **Chinese comments（中文注释）** at key locations to help the developer quickly understand the code.
+
+Required comment locations:
+- **Class definition**: briefly describe the class's responsibility（简述类职责）
+- **Function / method definition**: describe what it does, key parameters, and return value（描述功能、关键参数、返回值）
+- **Non-trivial logic**: complex conditionals, state machines, bit operations, protocol parsing, etc.（复杂条件、状态机、位操作、协议解析等）
+- **Signal / Slot connections**: explain what triggers the signal and what the slot does（说明信号触发条件与槽的作用）
+- **Important constants or magic numbers**: explain their meaning（说明含义）
+
+Rules:
+- All **new** comments written by AI must be in **Chinese（中文）**.
+- Keep comments concise — one or two sentences, not paragraphs.
+- Do NOT add comments on trivial or self-explanatory lines (e.g. `i += 1`).
+
+---
+
 ## Primary Objectives (Phase 1)（主要目标，第 1 阶段）
 
 The system must support:
