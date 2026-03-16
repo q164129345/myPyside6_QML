@@ -67,6 +67,19 @@ Note:
 |------|------|------|-------------|
 | **DATA_LEN** | 0 |  | No payload |
 
+### CMD 0x04 - Query Motor Type
+Direction: PC → MCU  
+Description: PC queries the motor type configured in the MCU firmware.  
+Frequence: 1000ms/次，仅在 PC 侧电机类型 == 0（未知）时轮询；获取到有效类型后停止查询。  
+Note:
+- MCU 总是立即响应，不依赖心跳在线状态。
+- No DATA payload.
+- PC 侧行为：连接初始化时电机类型置 0；串口断开时电机类型重置为 0；每 1S 发一次，直到收到 CMD 0x6D 且类型 ≠ 0 为止。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | No payload |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -165,6 +178,19 @@ Note:
 |------|------|------|-------------|
 | 0 | 2 | uint16_t | 错误码 |
 | **DATA_LEN** | 2 |  |  |
+
+### CMD 0x6D - Motor Type Response
+Direction: MCU → PC  
+Description: 响应 PC 的 CMD 0x04 电机类型查询，返回 MCU 固件中编译的电机类型。  
+Frequence: 被动响应（仅在收到 CMD 0x04 后发送，不主动上报）  
+Note:
+- 电机类型值与固件宏 `MOTOR_TYPE` 一致：1=边刷(中菱)，2=滚刷，3=新边刷(11050)，4=中菱轮毂电机，5=割刀电机。
+- MCU 总是立即响应，不依赖心跳在线状态。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8_t | 电机类型（1~5） |
+| **DATA_LEN** | 1 |  |  |
 
 
 ---
