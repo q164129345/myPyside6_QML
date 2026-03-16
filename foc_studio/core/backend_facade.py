@@ -1,6 +1,7 @@
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from core.command.motor_command import build_motor_control
+from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.service.data_processor import DataProcessor
@@ -9,6 +10,7 @@ from core.transport.serial import mySerial
 
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
+DEFAULT_MOTOR_TYPE = 0
 
 
 class BackendFacade(QObject):
@@ -35,6 +37,8 @@ class BackendFacade(QObject):
     motorCurrentUpdated = Signal(float)               # 电机电流 A
     mcuSoftwareVersionUpdated = Signal(str)           # 下位机软件版本（main.sub.mini.fixed）
 
+    mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~5，0=未知）
+
     def __init__(self) -> None:
         super().__init__()
         self._serial = mySerial()
@@ -47,6 +51,8 @@ class BackendFacade(QObject):
 
         # 下位机软件版本缓存，默认值表示尚未获取到有效版本
         self._mcu_version_text: str = DEFAULT_MCU_VERSION
+        # 下位机电机类型缓存，0 表示未知
+        self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
 
         self._motor_cmd_timer = QTimer(self)
         self._motor_cmd_timer.setInterval(500)
@@ -61,6 +67,11 @@ class BackendFacade(QObject):
         self._version_query_timer.setInterval(1000)
         self._version_query_timer.timeout.connect(self._on_version_query_timer)
 
+        # 电机类型查询轮询定时器：连接后若类型仍是 0，每 1 秒发送一次 CMD 0x04
+        self._motor_type_query_timer = QTimer(self)
+        self._motor_type_query_timer.setInterval(1000)
+        self._motor_type_query_timer.timeout.connect(self._on_motor_type_query_timer)
+
         # Transport -> Service
         self._serial.dataReceived.connect(self._processor.process_data)
         self._processor.telemetryUpdated.connect(self._dispatcher.dispatch)
@@ -74,6 +85,7 @@ class BackendFacade(QObject):
         self._dispatcher.dqComponentsUpdated.connect(self.dqComponentsUpdated)
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
+        self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
 
         # 将串口层状态信号转发给 QML
         self._serial.connectionStatusChanged.connect(self._on_connection_status_changed)
@@ -95,6 +107,11 @@ class BackendFacade(QObject):
         """QML 只读属性：下位机软件版本。"""
         return self._mcu_version_text
 
+    @Property(int, notify=mcuMotorTypeUpdated)  # type: ignore
+    def mcuMotorType(self) -> int:
+        """QML 只读属性：下位机电机类型（0=未知）。"""
+        return self._mcu_motor_type
+
     @Slot(str, int)
     def connectSerial(self, port_name: str, baud_rate: int = 9600) -> None:
         """打开串口连接。"""
@@ -105,7 +122,9 @@ class BackendFacade(QObject):
         """关闭串口连接，并停止心跳/版本轮询，版本回到默认值。"""
         self._stop_heartbeat()
         self._stop_version_query_loop()
+        self._stop_motor_type_query_loop()
         self._reset_mcu_version()
+        self._reset_mcu_motor_type()
         self._serial.closePort()
 
     @Slot()
@@ -159,6 +178,11 @@ class BackendFacade(QObject):
         if self._serial.isConnected:
             self._serial.sendData(build_query_software_version())
 
+    def _send_motor_type_query_once(self) -> None:
+        """连接状态下发送一次 CMD 0x04 电机类型查询帧。"""
+        if self._serial.isConnected:
+            self._serial.sendData(build_query_motor_type())
+
     def _start_heartbeat(self) -> None:
         """启动 PC 心跳定时器。"""
         if not self._heartbeat_timer.isActive():
@@ -179,6 +203,16 @@ class BackendFacade(QObject):
         if self._version_query_timer.isActive():
             self._version_query_timer.stop()
 
+    def _start_motor_type_query_loop(self) -> None:
+        """启动 1 秒电机类型查询轮询。"""
+        if not self._motor_type_query_timer.isActive():
+            self._motor_type_query_timer.start()
+
+    def _stop_motor_type_query_loop(self) -> None:
+        """停止电机类型查询轮询。"""
+        if self._motor_type_query_timer.isActive():
+            self._motor_type_query_timer.stop()
+
     def _on_version_query_timer(self) -> None:
         """定时轮询：仅在版本仍为默认值时继续发送查询。"""
         if not self._serial.isConnected:
@@ -188,6 +222,17 @@ class BackendFacade(QObject):
             self._send_version_query_once()
         else:
             self._stop_version_query_loop()
+
+
+    def _on_motor_type_query_timer(self) -> None:
+        """定时轮询：仅在电机类型仍为未知值时继续发送查询。"""
+        if not self._serial.isConnected:
+            self._stop_motor_type_query_loop()
+            return
+        if self._mcu_motor_type == DEFAULT_MOTOR_TYPE:
+            self._send_motor_type_query_once()
+        else:
+            self._stop_motor_type_query_loop()
 
     @Slot(int, int, int, int)
     def _on_mcu_version_updated(self, main: int, sub: int, mini: int, fixed: int) -> None:
@@ -208,17 +253,41 @@ class BackendFacade(QObject):
             self._mcu_version_text = DEFAULT_MCU_VERSION
             self.mcuSoftwareVersionUpdated.emit(self._mcu_version_text)
 
+
+    @Slot(int)
+    def _on_mcu_motor_type_updated(self, motor_type: int) -> None:
+        """收到下位机电机类型后更新缓存并通知 UI。"""
+        valid_motor_type = motor_type if 1 <= motor_type <= 5 else DEFAULT_MOTOR_TYPE
+        self._mcu_motor_type = valid_motor_type
+        self.mcuMotorTypeUpdated.emit(valid_motor_type)
+
+        if valid_motor_type == DEFAULT_MOTOR_TYPE:
+            if self._serial.isConnected:
+                self._start_motor_type_query_loop()
+        else:
+            self._stop_motor_type_query_loop()
+
+    def _reset_mcu_motor_type(self) -> None:
+        """将下位机电机类型复位到默认值，并在有变化时通知 UI。"""
+        if self._mcu_motor_type != DEFAULT_MOTOR_TYPE:
+            self._mcu_motor_type = DEFAULT_MOTOR_TYPE
+            self.mcuMotorTypeUpdated.emit(self._mcu_motor_type)
+
     @Slot(bool, str)
     def _on_connection_status_changed(self, connected: bool, message: str) -> None:
-        """连接建立时启动心跳与版本查询；断开时停止并复位版本。"""
+        """连接建立时启动心跳与查询轮询；断开时停止并复位状态。"""
         if connected:
             self._start_heartbeat()
             if self._mcu_version_text == DEFAULT_MCU_VERSION:
                 self._send_version_query_once()
                 self._start_version_query_loop()
+            if self._mcu_motor_type == DEFAULT_MOTOR_TYPE:
+                self._send_motor_type_query_once()
+                self._start_motor_type_query_loop()
         else:
             self._stop_heartbeat()
             self._stop_version_query_loop()
+            self._stop_motor_type_query_loop()
             self._reset_mcu_version()
+            self._reset_mcu_motor_type()
         self.connectionStatusChanged.emit(connected, message)
-

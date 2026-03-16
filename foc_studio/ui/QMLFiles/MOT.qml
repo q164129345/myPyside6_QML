@@ -21,6 +21,24 @@ Rectangle {
     property int errorCode: 0
     property int enableState: 0
     property string mcuSoftwareVersion: "0.0.0.0"
+    property int mcuMotorType: 0
+
+    function motorTypeLabel(typeValue) {
+        switch (typeValue) {
+        case 1:
+            return "边刷"
+        case 2:
+            return "滚刷"
+        case 3:
+            return "旧边刷"
+        case 4:
+            return "中菱轮毂"
+        case 5:
+            return "割刀电机"
+        default:
+            return "未知"
+        }
+    }
 
     component InputField: Rectangle {
         id: control
@@ -271,6 +289,15 @@ Rectangle {
                 }
 
                 TelemetryRow {
+                    label: "\u7535\u673a\u7c7b\u578b"
+                    range: "(0~5)"
+                    value: root.isSerialConnected
+                           ? (root.mcuMotorType.toString() + " (" + root.motorTypeLabel(root.mcuMotorType) + ")")
+                           : "--"
+                    unit: ""
+                }
+
+                TelemetryRow {
                     label: "使能状态"
                     range: "(0/1)"
                     value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
@@ -381,5 +408,6 @@ Rectangle {
         function onErrorCodeUpdated(code)    { root.errorCode = code }
         function onEnableStateUpdated(state) { root.enableState = state }
         function onMcuSoftwareVersionUpdated(versionText) { root.mcuSoftwareVersion = versionText }
+        function onMcuMotorTypeUpdated(typeValue) { root.mcuMotorType = typeValue }
     }
 }

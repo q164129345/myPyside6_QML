@@ -31,6 +31,7 @@ CMD_SOFTWARE_VERSION: int = 0x68
 CMD_DQ_COMPONENTS: int = 0x69
 CMD_MOTOR_CURRENT: int = 0x6A
 CMD_ERROR_CODE: int = 0x6C
+CMD_MOTOR_TYPE: int = 0x6D
 
 
 class FrameDispatcher(QObject):
@@ -45,6 +46,8 @@ class FrameDispatcher(QObject):
     dqComponentsUpdated = Signal(float, float, float, float)  # Iq, Id, Uq, Ud
     motorCurrentUpdated = Signal(float)               # 电机电流 A
 
+    mcuMotorTypeUpdated = Signal(int)                # 电机类型 0~255
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._handlers = {
@@ -56,6 +59,7 @@ class FrameDispatcher(QObject):
             CMD_DQ_COMPONENTS: self._handle_dq_components,
             CMD_MOTOR_CURRENT: self._handle_motor_current,
             CMD_ERROR_CODE: self._handle_error_code,
+            CMD_MOTOR_TYPE: self._handle_motor_type,
         }
 
     @Slot(object)
@@ -129,3 +133,8 @@ class FrameDispatcher(QObject):
         (raw,) = struct.unpack_from(">h", frame.data, 0)
         self.motorCurrentUpdated.emit(raw / 1000.0)
 
+    def _handle_motor_type(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x6D：电机类型。"""
+        if frame.datalen != 1:
+            return
+        self.mcuMotorTypeUpdated.emit(frame.data[0])
