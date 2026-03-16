@@ -17,9 +17,19 @@ Rectangle {
     property bool isSerialConnected: false
     property var portListModel: []  // 存储串口列表
     
+    property int txFrameCountTotal: backend ? backend.txFrameCountTotal : 0
+    property int rxFrameCountTotal: backend ? backend.rxFrameCountTotal : 0
+    property int txBytesTotal: backend ? backend.txBytesTotal : 0
+    property int rxBytesTotal: backend ? backend.rxBytesTotal : 0
+    property int txBytesPerSec: backend ? backend.txBytesPerSec : 0
+    property int rxBytesPerSec: backend ? backend.rxBytesPerSec : 0
+    property int rxCrcErrorCount: backend ? backend.rxCrcErrorCount : 0
+    property int rxInvalidFrameCount: backend ? backend.rxInvalidFrameCount : 0
+
     ColumnLayout {
-        anchors.centerIn: parent
-        spacing: 20
+        anchors.fill: parent
+        anchors.margins: 24
+        spacing: 16
 
         Text {
             font.pixelSize: 24
@@ -152,6 +162,87 @@ Rectangle {
                     backend.disconnectSerial()
                 }
             }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            color: "white"
+            radius: 8
+            border.color: "#bdc3c7"
+            border.width: 1
+            implicitHeight: 200
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+
+                Text {
+                    text: "串口统计"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: "#2c3e50"
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 32
+                    rowSpacing: 8
+
+                    Text {
+                        text: "发送总帧数: " + root.txFrameCountTotal
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "接收总帧数: " + root.rxFrameCountTotal
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "发送总字节: " + root.txBytesTotal
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "接收总字节: " + root.rxBytesTotal
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "发送速率: " + root.txBytesPerSec + " B/s"
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "接收速率: " + root.rxBytesPerSec + " B/s"
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: "CRC错误数: " + root.rxCrcErrorCount
+                        font.pixelSize: 13
+                        color: root.rxCrcErrorCount > 0 ? "#e67e22" : "#2c3e50"
+                    }
+
+                    Text {
+                        text: "无效帧数: " + root.rxInvalidFrameCount
+                        font.pixelSize: 13
+                        color: root.rxInvalidFrameCount > 0 ? "#e74c3c" : "#2c3e50"
+                    }
+                }
+            }
+        }
+
+        Item {
+            Layout.fillHeight: true
         }
     }
 

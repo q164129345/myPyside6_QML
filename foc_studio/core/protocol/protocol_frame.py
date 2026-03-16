@@ -44,11 +44,24 @@ class ParsedFrame(NamedTuple):
     data:    bytes
     crc:     int
 
+
+PARSE_STATUS_FRAME: str = "frame"
+PARSE_STATUS_INVALID: str = "invalid"
+PARSE_STATUS_CRC_ERROR: str = "crc_error"
+
+
+class BufferParseResult(NamedTuple):
+    """缓冲区解析结果，用于区分有效帧与错误类型。"""
+
+    status: str
+    consumed: int
+    frame: Optional[ParsedFrame] = None
+
 # parse_frame_from_buffer 的返回语义：
 #   (ParsedFrame, consumed)   ← 解析到一帧；consumed 为已消耗字节数
 #   (None, discard_count)     ← 无有效帧头；discard_count 为可安全丢弃的字节数
 #   None                      ← 数据不足；调用方保留缓冲区等待更多数据
-ParseResult = Optional[Tuple[Optional[ParsedFrame], int]]
+ParseResult = Optional[BufferParseResult]
 
 # ── CRC16-MODBUS 查表 ─────────────────────────────────────────────────────────
 
@@ -207,31 +220,31 @@ def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
         # ── 帧头已找到（位于偏移 i） ─────────────────────────────────────────
         # header 字段不完整：等待更多数据；若 i>0 先通知丢弃前导垃圾字节
         if i + HEADER_SIZE > buf_len:
-            return (None, i) if i > 0 else None
+            return BufferParseResult(PARSE_STATUS_INVALID, i) if i > 0 else None
 
         datalen   = buffer[i + 3]
         frame_end = i + HEADER_SIZE + datalen + CRC_SIZE
 
         # 数据段或 CRC 不完整：等待更多数据
         if frame_end > buf_len:
-            return (None, i) if i > 0 else None
+            return BufferParseResult(PARSE_STATUS_INVALID, i) if i > 0 else None
 
         # ── 尝试解析完整帧 ───────────────────────────────────────────────────
         parsed = unpack_frame(bytes(buffer[i:frame_end]))
         if parsed is not None:
-            return (parsed, frame_end)
+            return BufferParseResult(PARSE_STATUS_FRAME, frame_end, parsed)
 
         # CRC 校验失败：此 0xAA 不是有效帧头，向后移动一字节继续搜索
-        i += 1
+        return BufferParseResult(PARSE_STATUS_CRC_ERROR, frame_end)
 
     # ── 全缓冲区搜索完毕，未找到可成功解码的帧 ──────────────────────────────
     # 保留最后一个 0xAA 及其之后的字节（可能是下一帧起始）
     for j in range(buf_len - 1, -1, -1):
         if buffer[j] == FRAME_HEAD1:
-            return (None, j) if j > 0 else None
+            return BufferParseResult(PARSE_STATUS_INVALID, j) if j > 0 else None
 
     # 缓冲区内没有任何 0xAA，全部可安全丢弃
-    return (None, buf_len)
+    return BufferParseResult(PARSE_STATUS_INVALID, buf_len)
 
 
 # ── 自测 ──────────────────────────────────────────────────────────────────────

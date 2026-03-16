@@ -10,6 +10,8 @@ class mySerial(QObject):
     portsListChanged = Signal(list)    # 发射串口列表给QML
     dataReceived = Signal(bytes)       # 发射接收到的数据
     
+    dataWritten = Signal(int, bool)    # 发送后回传写入字节数与是否写入完整帧
+
     def __init__(self) -> None:
         super().__init__()
         self._serial_port = QSerialPort() # create serial port object
@@ -101,6 +103,9 @@ class mySerial(QObject):
                 # Parameters setting failed (common for pseudo-terminals/virtual ports), but port is open
                 print(f"[mySerial] Warning: Could not set all port parameters (likely a virtual/pseudo port)", flush=True)
                 print(f"[mySerial] Port is still usable for data transfer", flush=True)
+
+            # 连接建立后先清空驱动层收发缓冲，避免把连接瞬间的残留字节计入新会话
+            self._serial_port.clear(QSerialPort.AllDirections)  # type: ignore
             
             self._is_connected = True
             self.isConnectedChanged.emit()
@@ -117,6 +122,8 @@ class mySerial(QObject):
     def closePort(self) -> None:
         """关闭串口"""
         if self._is_connected and self._serial_port.isOpen():
+            # 关闭前清空驱动层缓冲，避免半帧残留到下一次连接
+            self._serial_port.clear(QSerialPort.AllDirections)  # type: ignore
             self._serial_port.close()
             self._is_connected = False
             self.isConnectedChanged.emit()  # 触发属性变化信号
@@ -129,7 +136,13 @@ class mySerial(QObject):
         if not self._is_connected or not self._serial_port.isOpen():
             print("[mySerial] Cannot send: port not connected", flush=True)
             return
-        self._serial_port.write(data)
+        # 将本次写入结果通知统计层，用于计算发送帧数与字节数
+        written = self._serial_port.write(data)
+        if written < 0:
+            print(f"[mySerial] Write failed: {self._serial_port.errorString()}", flush=True)
+            return
+
+        self.dataWritten.emit(written, written == len(data))
 
     def On_Data_Ready(self) -> None:
         """

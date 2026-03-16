@@ -6,6 +6,7 @@ from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.service.data_processor import DataProcessor
 from core.service.frame_dispatcher import FrameDispatcher
+from core.service.serial_statistics_service import SerialStatisticsService
 from core.transport.serial import mySerial
 
 
@@ -39,11 +40,21 @@ class BackendFacade(QObject):
 
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~5，0=未知）
 
+    txFrameCountTotalChanged = Signal()
+    rxFrameCountTotalChanged = Signal()
+    txBytesTotalChanged = Signal()
+    rxBytesTotalChanged = Signal()
+    txBytesPerSecChanged = Signal()
+    rxBytesPerSecChanged = Signal()
+    rxCrcErrorCountChanged = Signal()
+    rxInvalidFrameCountChanged = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self._serial = mySerial()
         self._processor = DataProcessor()
         self._dispatcher = FrameDispatcher()
+        self._serial_stats = SerialStatisticsService(self)
 
         # 电机控制目标，用于 500ms 周期保活发送 CMD 0x01
         self._motor_enable: int = 0
@@ -74,7 +85,12 @@ class BackendFacade(QObject):
 
         # Transport -> Service
         self._serial.dataReceived.connect(self._processor.process_data)
+        self._serial.dataReceived.connect(self._serial_stats.onDataReceived)
+        self._serial.dataWritten.connect(self._serial_stats.onDataWritten)
         self._processor.telemetryUpdated.connect(self._dispatcher.dispatch)
+        self._processor.telemetryUpdated.connect(self._serial_stats.onFrameParsed)
+        self._processor.crcErrorDetected.connect(self._serial_stats.onCrcErrorDetected)
+        self._processor.invalidFrameDetected.connect(self._serial_stats.onInvalidFrameDetected)
 
         # Dispatcher -> Facade -> QML
         self._dispatcher.speedUpdated.connect(self.speedUpdated)
@@ -86,6 +102,14 @@ class BackendFacade(QObject):
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
+        self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
+        self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
+        self._serial_stats.txBytesTotalChanged.connect(self.txBytesTotalChanged)
+        self._serial_stats.rxBytesTotalChanged.connect(self.rxBytesTotalChanged)
+        self._serial_stats.txBytesPerSecChanged.connect(self.txBytesPerSecChanged)
+        self._serial_stats.rxBytesPerSecChanged.connect(self.rxBytesPerSecChanged)
+        self._serial_stats.rxCrcErrorCountChanged.connect(self.rxCrcErrorCountChanged)
+        self._serial_stats.rxInvalidFrameCountChanged.connect(self.rxInvalidFrameCountChanged)
 
         # 将串口层状态信号转发给 QML
         self._serial.connectionStatusChanged.connect(self._on_connection_status_changed)
@@ -111,6 +135,46 @@ class BackendFacade(QObject):
     def mcuMotorType(self) -> int:
         """QML 只读属性：下位机电机类型（0=未知）。"""
         return self._mcu_motor_type
+
+    @Property(int, notify=txFrameCountTotalChanged)  # type: ignore
+    def txFrameCountTotal(self) -> int:
+        """QML 只读属性：当前会话累计发送完整帧数。"""
+        return self._serial_stats.txFrameCountTotal
+
+    @Property(int, notify=rxFrameCountTotalChanged)  # type: ignore
+    def rxFrameCountTotal(self) -> int:
+        """QML 只读属性：当前会话累计接收有效帧数。"""
+        return self._serial_stats.rxFrameCountTotal
+
+    @Property(int, notify=txBytesTotalChanged)  # type: ignore
+    def txBytesTotal(self) -> int:
+        """QML 只读属性：当前会话累计发送字节数。"""
+        return self._serial_stats.txBytesTotal
+
+    @Property(int, notify=rxBytesTotalChanged)  # type: ignore
+    def rxBytesTotal(self) -> int:
+        """QML 只读属性：当前会话累计接收原始字节数。"""
+        return self._serial_stats.rxBytesTotal
+
+    @Property(int, notify=txBytesPerSecChanged)  # type: ignore
+    def txBytesPerSec(self) -> int:
+        """QML 只读属性：最近 1 秒发送字节速率。"""
+        return self._serial_stats.txBytesPerSec
+
+    @Property(int, notify=rxBytesPerSecChanged)  # type: ignore
+    def rxBytesPerSec(self) -> int:
+        """QML 只读属性：最近 1 秒接收字节速率。"""
+        return self._serial_stats.rxBytesPerSec
+
+    @Property(int, notify=rxCrcErrorCountChanged)  # type: ignore
+    def rxCrcErrorCount(self) -> int:
+        """QML 只读属性：当前会话累计 CRC 错误次数。"""
+        return self._serial_stats.rxCrcErrorCount
+
+    @Property(int, notify=rxInvalidFrameCountChanged)  # type: ignore
+    def rxInvalidFrameCount(self) -> int:
+        """QML 只读属性：当前会话累计无效帧恢复次数。"""
+        return self._serial_stats.rxInvalidFrameCount
 
     @Slot(str, int)
     def connectSerial(self, port_name: str, baud_rate: int = 9600) -> None:
@@ -277,6 +341,9 @@ class BackendFacade(QObject):
     def _on_connection_status_changed(self, connected: bool, message: str) -> None:
         """连接建立时启动心跳与查询轮询；断开时停止并复位状态。"""
         if connected:
+            # 新会话开始前先清空服务层接收缓冲，避免把上一会话半帧统计成错误
+            self._processor.reset()
+            self._serial_stats.reset()
             self._start_heartbeat()
             if self._mcu_version_text == DEFAULT_MCU_VERSION:
                 self._send_version_query_once()
@@ -288,6 +355,8 @@ class BackendFacade(QObject):
             self._stop_heartbeat()
             self._stop_version_query_loop()
             self._stop_motor_type_query_loop()
+            # 断开时同步清空解析缓冲，避免残留字节带到下一次连接
+            self._processor.reset()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
         self.connectionStatusChanged.emit(connected, message)
