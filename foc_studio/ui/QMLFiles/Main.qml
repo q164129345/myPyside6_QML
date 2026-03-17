@@ -181,6 +181,35 @@ ApplicationWindow {
                     }
                 }
 
+                // TUNE 按钮
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: root.currentPage === "TUNE" ? "#3498db" : "#34495e"
+                    radius: 5
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            text: "TUNE"
+                            color: "white"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "TUNE"
+                        }
+                    }
+                }
+
                 // 占位符 - 将按钮推到顶部
                 Item {
                     Layout.fillHeight: true
@@ -197,7 +226,10 @@ ApplicationWindow {
             // 使用 StackLayout 来切换不同的页面
             StackLayout {
                 anchors.fill: parent
-                currentIndex: root.currentPage === "SYS" ? 0 : root.currentPage === "MOT" ? 1 : 2
+                currentIndex: root.currentPage === "SYS" ? 0
+                             : root.currentPage === "MOT" ? 1
+                             : root.currentPage === "CAN" ? 2
+                             : 3
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
@@ -211,6 +243,11 @@ ApplicationWindow {
 
                 // CAN 页面 - 使用独立的组件
                 CAN {
+                    isSerialConnected: root.isSerialConnected
+                }
+
+                // TUNE 页面 - 电机参数调试
+                TUNE {
                     isSerialConnected: root.isSerialConnected
                 }
             }
