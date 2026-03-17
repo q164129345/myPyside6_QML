@@ -19,9 +19,28 @@ Rectangle {
     property real uqVoltage: 0.0
     property real udVoltage: 0.0
     property int errorCode: 0
+    property bool hasErrorCodeData: false
     property int enableState: 0
     property string mcuSoftwareVersion: "0.0.0.0"
     property int mcuMotorType: 0
+    property var faultBitDefinitions: [
+        { bit: 0, label: "驱动器过压" },
+        { bit: 1, label: "驱动器欠压" },
+        { bit: 2, label: "驱动器过流" },
+        { bit: 3, label: "预留位3" },
+        { bit: 4, label: "速度超差" },
+        { bit: 5, label: "预留位5" },
+        { bit: 6, label: "温度超过80度" },
+        { bit: 7, label: "MOS温度超过100度" },
+        { bit: 8, label: "FOC校准失败" },
+        { bit: 9, label: "485/编码器通讯故障" },
+        { bit: 10, label: "CAN总线通讯故障" },
+        { bit: 11, label: "保留位11" },
+        { bit: 12, label: "保留位12" },
+        { bit: 13, label: "保留位13" },
+        { bit: 14, label: "保留位14" },
+        { bit: 15, label: "保留位15" }
+    ]
 
     function motorTypeLabel(typeValue) {
         switch (typeValue) {
@@ -32,11 +51,25 @@ Rectangle {
         case 3:
             return "旧边刷"
         case 4:
-            return "中菱轮毂"
+            return "中置轮毂"
         case 5:
             return "割刀电机"
         default:
             return "未知"
+        }
+    }
+
+    function formatErrorCode(codeValue) {
+        var hexText = (codeValue & 0xFFFF).toString(16).toUpperCase()
+        while (hexText.length < 4)
+            hexText = "0" + hexText
+        return "0x" + hexText
+    }
+
+    onIsSerialConnectedChanged: {
+        if (!root.isSerialConnected) {
+            root.errorCode = 0
+            root.hasErrorCodeData = false
         }
     }
 
@@ -166,6 +199,59 @@ Rectangle {
         }
     }
 
+    component FaultBitIndicator: Rectangle {
+        id: indicator
+        property int bitIndex: 0
+        property string bitLabel: ""
+        property bool hasValidState: false
+        property int codeValue: 0
+        readonly property bool bitSet: ((codeValue >> bitIndex) & 1) === 1
+
+        implicitWidth: 180
+        implicitHeight: 34
+        radius: 6
+        color: hasValidState ? "#f8f9fa" : "#f2f4f5"
+        border.color: hasValidState ? "#d5dbdb" : "#e1e6e8"
+        border.width: 1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 8
+
+            Rectangle {
+                Layout.alignment: Qt.AlignVCenter
+                width: 12
+                height: 12
+                radius: 6
+                color: !indicator.hasValidState ? "#95a5a6" : (indicator.bitSet ? "#e74c3c" : "#27ae60")
+                border.color: !indicator.hasValidState ? "#7f8c8d" : (indicator.bitSet ? "#c0392b" : "#1e8449")
+                border.width: 1
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                Text {
+                    text: "bit" + indicator.bitIndex
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: indicator.hasValidState ? "#2c3e50" : "#7f8c8d"
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: indicator.bitLabel
+                    font.pixelSize: 11
+                    color: indicator.hasValidState ? "#34495e" : "#95a5a6"
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -282,14 +368,14 @@ Rectangle {
                 spacing: 12
 
                 TelemetryRow {
-                    label: "\u8f6f\u4ef6\u7248\u672c"
+                    label: "软件版本"
                     range: "(main.sub.mini.fixed)"
                     value: root.mcuSoftwareVersion
                     unit: ""
                 }
 
                 TelemetryRow {
-                    label: "\u7535\u673a\u7c7b\u578b"
+                    label: "电机类型"
                     range: "(0~5)"
                     value: root.isSerialConnected
                            ? (root.mcuMotorType.toString() + " (" + root.motorTypeLabel(root.mcuMotorType) + ")")
@@ -364,29 +450,62 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 72
+            implicitHeight: 192
             color: "white"
             border.color: "#bdc3c7"
             border.width: 1
             radius: 8
 
-            Text {
-                text: "电机故障信息"
-                font.pixelSize: 12
-                font.bold: true
-                color: "#2c3e50"
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: 6
-            }
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 6
 
-            Text {
-                anchors.centerIn: parent
-                font.pixelSize: 13
-                color: root.errorCode !== 0 ? "#e74c3c" : "#27ae60"
-                text: root.isSerialConnected
-                      ? (root.errorCode !== 0 ? "错误码: 0x" + root.errorCode.toString(16).toUpperCase() : "正常")
-                      : "--"
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: 22
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: !root.isSerialConnected || !root.hasErrorCodeData
+                               ? "#7f8c8d"
+                               : (root.errorCode !== 0 ? "#e74c3c" : "#27ae60")
+                        text: !root.isSerialConnected || !root.hasErrorCodeData
+                              ? "--"
+                              : (root.errorCode !== 0 ? "错误码: " + root.formatErrorCode(root.errorCode) : "正常")
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "电机故障信息"
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: "#2c3e50"
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 4
+                    columnSpacing: 8
+                    rowSpacing: 4
+
+                    Repeater {
+                        model: root.faultBitDefinitions
+
+                        delegate: FaultBitIndicator {
+                            Layout.fillWidth: true
+                            bitIndex: modelData.bit
+                            bitLabel: modelData.label
+                            hasValidState: root.isSerialConnected && root.hasErrorCodeData
+                            codeValue: root.errorCode
+                        }
+                    }
+                }
             }
         }
     }
@@ -405,7 +524,10 @@ Rectangle {
             root.uqVoltage = uq
             root.udVoltage = ud
         }
-        function onErrorCodeUpdated(code)    { root.errorCode = code }
+        function onErrorCodeUpdated(code) {
+            root.errorCode = code
+            root.hasErrorCodeData = true
+        }
         function onEnableStateUpdated(state) { root.enableState = state }
         function onMcuSoftwareVersionUpdated(versionText) { root.mcuSoftwareVersion = versionText }
         function onMcuMotorTypeUpdated(typeValue) { root.mcuMotorType = typeValue }
