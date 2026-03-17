@@ -358,92 +358,109 @@ Rectangle {
                 anchors.topMargin: 6
             }
 
-            ColumnLayout {
+            RowLayout {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.topMargin: 30
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
-                spacing: 12
+                spacing: 24
 
-                TelemetryRow {
-                    label: "软件版本"
-                    range: "(main.sub.mini.fixed)"
-                    value: root.mcuSoftwareVersion
-                    unit: ""
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
+
+                    TelemetryRow {
+                        label: "软件版本"
+                        range: "(main.sub.mini.fixed)"
+                        value: root.mcuSoftwareVersion
+                        unit: ""
+                    }
+
+                    TelemetryRow {
+                        label: "电机类型"
+                        range: "(0~5)"
+                        value: root.isSerialConnected
+                               ? (root.mcuMotorType.toString() + " (" + root.motorTypeLabel(root.mcuMotorType) + ")")
+                               : "--"
+                        unit: ""
+                    }
+
+                    TelemetryRow {
+                        label: "使能状态"
+                        range: "(0/1)"
+                        value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
+                        unit: ""
+                    }
+
+                    TelemetryRow {
+                        label: "转速"
+                        range: "(-3000~3000)"
+                        value: root.isSerialConnected ? root.currentSpeed.toString() : "--"
+                        unit: "RPM"
+                    }
+
+                    TelemetryRow {
+                        label: "电流"
+                        range: "(0~30.0)"
+                        value: root.isSerialConnected ? root.currentCurrent.toFixed(3) : "--"
+                        unit: "A"
+                    }
+
+                    TelemetryRow {
+                        label: "电机温度"
+                        range: "(0.1 ℃)"
+                        value: root.isSerialConnected ? root.motorTemp.toFixed(1) : "--"
+                        unit: "℃"
+                    }
+
+                    TelemetryRow {
+                        label: "MOS温度"
+                        range: "(0.1 ℃)"
+                        value: root.isSerialConnected ? root.mosTemp.toFixed(1) : "--"
+                        unit: "℃"
+                    }
                 }
 
-                TelemetryRow {
-                    label: "电机类型"
-                    range: "(0~5)"
-                    value: root.isSerialConnected
-                           ? (root.mcuMotorType.toString() + " (" + root.motorTypeLabel(root.mcuMotorType) + ")")
-                           : "--"
-                    unit: ""
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
+
+                    TelemetryRow {
+                        label: "Iq电流分量"
+                        range: "(-32.768~32.767)"
+                        value: root.isSerialConnected ? root.iqCurrent.toFixed(3) : "--"
+                        unit: "A"
+                    }
+
+                    TelemetryRow {
+                        label: "Id电流分量"
+                        range: "(-32.768~32.767)"
+                        value: root.isSerialConnected ? root.idCurrent.toFixed(3) : "--"
+                        unit: "A"
+                    }
+
+                    TelemetryRow {
+                        label: "Uq电压分量"
+                        range: "(-32.768~32.767)"
+                        value: root.isSerialConnected ? root.uqVoltage.toFixed(3) : "--"
+                        unit: "V"
+                    }
+
+                    TelemetryRow {
+                        label: "Ud电压分量"
+                        range: "(-32.768~32.767)"
+                        value: root.isSerialConnected ? root.udVoltage.toFixed(3) : "--"
+                        unit: "V"
+                    }
                 }
 
-                TelemetryRow {
-                    label: "使能状态"
-                    range: "(0/1)"
-                    value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
-                    unit: ""
-                }
-
-                TelemetryRow {
-                    label: "转速"
-                    range: "(-3000~3000)"
-                    value: root.isSerialConnected ? root.currentSpeed.toString() : "--"
-                    unit: "RPM"
-                }
-
-                TelemetryRow {
-                    label: "电流"
-                    range: "(0~30.0)"
-                    value: root.isSerialConnected ? root.currentCurrent.toFixed(3) : "--"
-                    unit: "A"
-                }
-
-                TelemetryRow {
-                    label: "电机温度"
-                    range: "(0.1 ℃)"
-                    value: root.isSerialConnected ? root.motorTemp.toFixed(1) : "--"
-                    unit: "℃"
-                }
-
-                TelemetryRow {
-                    label: "MOS温度"
-                    range: "(0.1 ℃)"
-                    value: root.isSerialConnected ? root.mosTemp.toFixed(1) : "--"
-                    unit: "℃"
-                }
-
-                TelemetryRow {
-                    label: "Iq电流分量"
-                    range: "(-32.768~32.767)"
-                    value: root.isSerialConnected ? root.iqCurrent.toFixed(3) : "--"
-                    unit: "A"
-                }
-
-                TelemetryRow {
-                    label: "Id电流分量"
-                    range: "(-32.768~32.767)"
-                    value: root.isSerialConnected ? root.idCurrent.toFixed(3) : "--"
-                    unit: "A"
-                }
-
-                TelemetryRow {
-                    label: "Uq电压分量"
-                    range: "(-32.768~32.767)"
-                    value: root.isSerialConnected ? root.uqVoltage.toFixed(3) : "--"
-                    unit: "V"
-                }
-
-                TelemetryRow {
-                    label: "Ud电压分量"
-                    range: "(-32.768~32.767)"
-                    value: root.isSerialConnected ? root.udVoltage.toFixed(3) : "--"
-                    unit: "V"
+                Item {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
                 }
             }
         }
