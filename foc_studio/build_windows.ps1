@@ -25,10 +25,14 @@ $sourceUiDir = Join-Path $projectRoot "ui"
 $targetUiDir = Join-Path $appDir "ui"
 $sourceQtQmlDir = Join-Path $pysideDir "qml"
 $targetQtQmlDir = Join-Path $appDir "PySide6\qml"
-$iconPath = Join-Path $pysideDir "scripts\deploy_lib\pyside_icon.ico"
+$iconPath = Join-Path $projectRoot "ui\assets\app.ico"
 
 Write-Host "Using Python: $pythonRuntime"
 Write-Host "Building Windows standalone package with Nuitka..."
+
+if (-not (Test-Path $iconPath)) {
+    throw "Application icon file was not found: $iconPath"
+}
 
 Push-Location $projectRoot
 try {

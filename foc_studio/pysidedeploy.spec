@@ -3,7 +3,7 @@ title = foc_studio
 project_dir = .
 input_file = main.py
 exec_directory = deployment
-icon = C:\Users\wallace.zhang\.pyenv\pyenv-win\versions\3.10.11\Lib\site-packages\PySide6\scripts\deploy_lib\pyside_icon.ico
+icon = ui/assets/app.ico
 
 [python]
 packages = Nuitka==2.7.11

@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
 from core.backend_facade import BackendFacade
@@ -18,6 +18,10 @@ def _main_qml_path() -> Path:
     return _application_base_dir() / "ui" / "QMLFiles" / "Main.qml"
 
 
+def _application_icon_path() -> Path:
+    return _application_base_dir() / "ui" / "assets" / "app.ico"
+
+
 def _report_qml_warnings(warnings: list) -> None:
     for warning in warnings:
         print(warning.toString(), file=sys.stderr)
@@ -31,6 +35,10 @@ if __name__ == "__main__":
         sys.exit(-1)
 
     app = QGuiApplication(sys.argv)
+    icon_path = _application_icon_path()
+    if icon_path.is_file():
+        # 设置运行时窗口图标，避免标题栏和任务栏回退到默认 PySide 图标
+        app.setWindowIcon(QIcon(str(icon_path)))
     engine = QQmlApplicationEngine()
     engine.warnings.connect(_report_qml_warnings)
 
