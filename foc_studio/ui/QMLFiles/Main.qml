@@ -249,6 +249,7 @@ ApplicationWindow {
                 // TUNE 页面 - 电机参数调试
                 TUNE {
                     isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "TUNE"
                 }
             }
         }

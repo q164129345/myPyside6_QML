@@ -1,9 +1,17 @@
+from typing import Any
+
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from core.command.motor_command import build_motor_control
 from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
+from core.command.tune_params_command import (
+    build_query_current_loop_params,
+    build_query_speed_loop_params,
+    build_set_current_loop_params,
+    build_set_speed_loop_params,
+)
 from core.service.data_processor import DataProcessor
 from core.service.frame_dispatcher import FrameDispatcher
 from core.service.serial_statistics_service import SerialStatisticsService
@@ -12,6 +20,21 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
+TUNE_PARAM_TIMEOUT_MS = 1500
+TUNE_PARAM_STATUS_IDLE = "未读取参数"
+TUNE_PARAM_STATUS_READING = "正在读取参数"
+TUNE_PARAM_STATUS_WRITEBACK = "正在写入参数并读回校验"
+TUNE_PARAM_STATUS_SYNCED = "参数已同步"
+TUNE_PARAM_STATUS_WRITEBACK_TIMEOUT = "写入后读回超时"
+TUNE_PARAM_STATUS_READ_TIMEOUT = "读取参数超时"
+
+
+def _default_control_params() -> dict[str, dict[str, float]]:
+    """创建默认的 TUNE 参数缓存对象。"""
+    return {
+        "speedLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "tf": 0.0},
+        "currentLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "tf": 0.0},
+    }
 
 
 class BackendFacade(QObject):
@@ -48,6 +71,10 @@ class BackendFacade(QObject):
     rxBytesPerSecChanged = Signal()
     rxCrcErrorCountChanged = Signal()
     rxInvalidFrameCountChanged = Signal()
+    controlParamsChanged = Signal()
+    controlParamsAvailableChanged = Signal()
+    controlParamsBusyChanged = Signal()
+    controlParamsLastStatusChanged = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -64,6 +91,18 @@ class BackendFacade(QObject):
         self._mcu_version_text: str = DEFAULT_MCU_VERSION
         # 下位机电机类型缓存，0 表示未知
         self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
+        # TUNE 页面控制参数缓存，按速度环 / 电流环分别保存最近一次回读值
+        self._control_params: dict[str, dict[str, float]] = _default_control_params()
+        # TUNE 页面参数是否已完成一轮有效读回
+        self._control_params_available: bool = False
+        # TUNE 页面参数当前是否处于读取或写后读回阶段
+        self._control_params_busy: bool = False
+        # TUNE 页面最近一次参数操作的状态文案
+        self._control_params_last_status: str = TUNE_PARAM_STATUS_IDLE
+        # 当前一轮参数读回仍在等待的环路集合，用于判断何时完成同步
+        self._pending_param_loops: set[str] = set()
+        # 标记当前读回是否属于“写入后校验”流程
+        self._post_write_readback_pending: bool = False
 
         self._motor_cmd_timer = QTimer(self)
         self._motor_cmd_timer.setInterval(500)
@@ -82,6 +121,12 @@ class BackendFacade(QObject):
         self._motor_type_query_timer = QTimer(self)
         self._motor_type_query_timer.setInterval(1000)
         self._motor_type_query_timer.timeout.connect(self._on_motor_type_query_timer)
+
+        # TUNE 页面参数超时定时器：读取或写后读回超时后复位 busy 并更新状态
+        self._tune_param_timeout_timer = QTimer(self)
+        self._tune_param_timeout_timer.setSingleShot(True)
+        self._tune_param_timeout_timer.setInterval(TUNE_PARAM_TIMEOUT_MS)
+        self._tune_param_timeout_timer.timeout.connect(self._on_tune_param_timeout)
 
         # Transport -> Service
         self._serial.dataReceived.connect(self._processor.process_data)
@@ -102,6 +147,8 @@ class BackendFacade(QObject):
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
+        self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
+        self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
         self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
         self._serial_stats.txBytesTotalChanged.connect(self.txBytesTotalChanged)
@@ -176,6 +223,29 @@ class BackendFacade(QObject):
         """QML 只读属性：当前会话累计无效帧恢复次数。"""
         return self._serial_stats.rxInvalidFrameCount
 
+    @Property("QVariantMap", notify=controlParamsChanged)  # type: ignore
+    def controlParams(self) -> dict[str, dict[str, float]]:
+        """QML 只读属性：TUNE 页面控制参数缓存。"""
+        return {
+            "speedLoop": dict(self._control_params["speedLoop"]),
+            "currentLoop": dict(self._control_params["currentLoop"]),
+        }
+
+    @Property(bool, notify=controlParamsAvailableChanged)  # type: ignore
+    def controlParamsAvailable(self) -> bool:
+        """QML 只读属性：TUNE 页面参数是否已完成有效回读。"""
+        return self._control_params_available
+
+    @Property(bool, notify=controlParamsBusyChanged)  # type: ignore
+    def controlParamsBusy(self) -> bool:
+        """QML 只读属性：TUNE 页面参数当前是否忙碌。"""
+        return self._control_params_busy
+
+    @Property(str, notify=controlParamsLastStatusChanged)  # type: ignore
+    def controlParamsLastStatus(self) -> str:
+        """QML 只读属性：TUNE 页面最近一次参数操作状态。"""
+        return self._control_params_last_status
+
     @Slot(str, int)
     def connectSerial(self, port_name: str, baud_rate: int = 9600) -> None:
         """打开串口连接。"""
@@ -229,6 +299,37 @@ class BackendFacade(QObject):
         if self._mcu_version_text == DEFAULT_MCU_VERSION:
             self._start_version_query_loop()
 
+    @Slot()
+    def queryControlParams(self) -> None:
+        """兼容 TUNE 页面入口：触发一次速度环和电流环参数读取。"""
+        self.requestTuneParamsRefresh()
+
+    @Slot()
+    def requestTuneParamsRefresh(self) -> None:
+        """TUNE 页面高层入口：按固定顺序读取速度环和电流环参数。"""
+        self._start_tune_param_refresh(post_write_readback=False)
+
+    @Slot(dict)
+    def applyControlParams(self, params: dict[str, Any]) -> None:
+        """接收 QML 聚合参数并拆成两条设置命令下发。"""
+        if not self._serial.isConnected:
+            self._set_control_params_last_status("串口未连接，无法写入参数")
+            return
+        if self._control_params_busy:
+            self._set_control_params_last_status("参数同步中，请稍后再试")
+            return
+
+        try:
+            speed_loop = self._extract_loop_params(params, "speedLoop")
+            current_loop = self._extract_loop_params(params, "currentLoop")
+            self._serial.sendData(build_set_speed_loop_params(*speed_loop))
+            self._serial.sendData(build_set_current_loop_params(*current_loop))
+        except (KeyError, TypeError, ValueError) as error:
+            self._set_control_params_last_status(f"参数校验失败: {error}")
+            return
+
+        self._start_tune_param_refresh(post_write_readback=True)
+
     def _send_motor_cmd(self) -> None:
         """编码并发送 CMD 0x01 电机控制帧。"""
         self._serial.sendData(build_motor_control(self._motor_enable, self._motor_target_speed))
@@ -246,6 +347,79 @@ class BackendFacade(QObject):
         """连接状态下发送一次 CMD 0x04 电机类型查询帧。"""
         if self._serial.isConnected:
             self._serial.sendData(build_query_motor_type())
+
+    def _start_tune_param_refresh(self, post_write_readback: bool) -> None:
+        """启动一轮 TUNE 页面参数读取或写后读回流程。"""
+        if not self._serial.isConnected:
+            self._set_control_params_last_status("串口未连接，无法读取参数")
+            return
+        if self._control_params_busy:
+            return
+
+        self._pending_param_loops = {"speedLoop", "currentLoop"}
+        self._post_write_readback_pending = post_write_readback
+        self._set_control_params_available(False)
+        self._set_control_params_busy(True)
+        self._set_control_params_last_status(
+            TUNE_PARAM_STATUS_WRITEBACK if post_write_readback else TUNE_PARAM_STATUS_READING
+        )
+        # TUNE 参数读取顺序固定为速度环在前、电流环在后，便于和页面展示顺序保持一致
+        self._serial.sendData(build_query_speed_loop_params())
+        self._serial.sendData(build_query_current_loop_params())
+        self._tune_param_timeout_timer.start()
+
+    def _extract_loop_params(self, params: dict[str, Any], loop_key: str) -> tuple[float, float, float, float]:
+        """从 QML 传入的聚合参数中提取单个环路的四个工程量。"""
+        loop_params = params[loop_key]
+        return (
+            float(loop_params["kp"]),
+            float(loop_params["ki"]),
+            float(loop_params["kd"]),
+            float(loop_params["tf"]),
+        )
+
+    def _update_loop_params(self, loop_key: str, kp: float, ki: float, kd: float, tf: float) -> None:
+        """更新某个环路的参数缓存，并通知 QML 当前值已变化。"""
+        self._control_params[loop_key] = {
+            "kp": kp,
+            "ki": ki,
+            "kd": kd,
+            "tf": tf,
+        }
+        self.controlParamsChanged.emit()
+
+    def _finish_param_loop_response(self, loop_key: str) -> None:
+        """消费某个环路的回读结果，并在两组都完成时结束 busy。"""
+        if loop_key not in self._pending_param_loops:
+            return
+
+        self._pending_param_loops.remove(loop_key)
+        if self._pending_param_loops:
+            return
+
+        self._tune_param_timeout_timer.stop()
+        self._set_control_params_busy(False)
+        self._set_control_params_available(True)
+        self._set_control_params_last_status(TUNE_PARAM_STATUS_SYNCED)
+        self._post_write_readback_pending = False
+
+    def _set_control_params_available(self, available: bool) -> None:
+        """更新参数可用态，并在变化时通知 QML。"""
+        if self._control_params_available != available:
+            self._control_params_available = available
+            self.controlParamsAvailableChanged.emit()
+
+    def _set_control_params_busy(self, busy: bool) -> None:
+        """更新参数忙碌态，并在变化时通知 QML。"""
+        if self._control_params_busy != busy:
+            self._control_params_busy = busy
+            self.controlParamsBusyChanged.emit()
+
+    def _set_control_params_last_status(self, status_text: str) -> None:
+        """更新参数状态文案，并在变化时通知 QML。"""
+        if self._control_params_last_status != status_text:
+            self._control_params_last_status = status_text
+            self.controlParamsLastStatusChanged.emit()
 
     def _start_heartbeat(self) -> None:
         """启动 PC 心跳定时器。"""
@@ -331,11 +505,46 @@ class BackendFacade(QObject):
         else:
             self._stop_motor_type_query_loop()
 
+    @Slot(float, float, float, float)
+    def _on_speed_loop_params_updated(self, kp: float, ki: float, kd: float, tf: float) -> None:
+        """收到速度环参数回读后更新缓存，并尝试结束当前同步流程。"""
+        self._update_loop_params("speedLoop", kp, ki, kd, tf)
+        self._finish_param_loop_response("speedLoop")
+
+    @Slot(float, float, float, float)
+    def _on_current_loop_params_updated(self, kp: float, ki: float, kd: float, tf: float) -> None:
+        """收到电流环参数回读后更新缓存，并尝试结束当前同步流程。"""
+        self._update_loop_params("currentLoop", kp, ki, kd, tf)
+        self._finish_param_loop_response("currentLoop")
+
     def _reset_mcu_motor_type(self) -> None:
         """将下位机电机类型复位到默认值，并在有变化时通知 UI。"""
         if self._mcu_motor_type != DEFAULT_MOTOR_TYPE:
             self._mcu_motor_type = DEFAULT_MOTOR_TYPE
             self.mcuMotorTypeUpdated.emit(self._mcu_motor_type)
+
+    def _reset_control_params(self) -> None:
+        """断开串口时复位 TUNE 页面参数状态和缓存。"""
+        self._tune_param_timeout_timer.stop()
+        self._pending_param_loops.clear()
+        self._post_write_readback_pending = False
+        self._control_params = _default_control_params()
+        self.controlParamsChanged.emit()
+        self._set_control_params_available(False)
+        self._set_control_params_busy(False)
+        self._set_control_params_last_status(TUNE_PARAM_STATUS_IDLE)
+
+    def _on_tune_param_timeout(self) -> None:
+        """处理 TUNE 页面参数读取或写后读回超时。"""
+        self._pending_param_loops.clear()
+        self._set_control_params_busy(False)
+        self._set_control_params_available(False)
+        self._set_control_params_last_status(
+            TUNE_PARAM_STATUS_WRITEBACK_TIMEOUT
+            if self._post_write_readback_pending
+            else TUNE_PARAM_STATUS_READ_TIMEOUT
+        )
+        self._post_write_readback_pending = False
 
     @Slot(bool, str)
     def _on_connection_status_changed(self, connected: bool, message: str) -> None:
@@ -359,4 +568,5 @@ class BackendFacade(QObject):
             self._processor.reset()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
+            self._reset_control_params()
         self.connectionStatusChanged.emit(connected, message)

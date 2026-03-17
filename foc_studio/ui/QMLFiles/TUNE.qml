@@ -11,6 +11,8 @@ Rectangle {
 
     // 串口连接状态由主窗口传入，用于控制整个调参页面的可操作状态
     property bool isSerialConnected: false
+    // 当前页面是否处于激活态，用于在切到 TUNE 时自动触发一次读取
+    property bool isPageActive: false
     // 本地占位参数，在后端参数接口尚未接入时用于驱动 UI
     property var fallbackControlParams: createDefaultParams()
     // 当前值始终代表 MCU 回读值（本期可能是占位值）
@@ -662,6 +664,12 @@ Rectangle {
         }
     }
 
+    onIsPageActiveChanged: {
+        if (isPageActive && isSerialConnected && !controlParamsBusy) {
+            triggerQuery()
+        }
+    }
+
     Component.onCompleted: syncFromBackend(true)
 
     // 预留未来 backend 的参数变更信号，接口未接入时忽略即可
@@ -670,11 +678,12 @@ Rectangle {
         ignoreUnknownSignals: true
 
         function onControlParamsChanged() {
-            root.syncFromBackend(true)
+            root.syncFromBackend(false)
         }
 
         function onControlParamsAvailableChanged() {
-            root.syncFromBackend(true)
+            var availableInfo = root.readBackendMember("controlParamsAvailable")
+            root.syncFromBackend(availableInfo.exists ? Boolean(availableInfo.value) : false)
         }
 
         function onControlParamsBusyChanged() {

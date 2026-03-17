@@ -14,6 +14,8 @@
   CMD 0x69  Iq/Id/Uq/Ud         4 * int16，按 1/1000 还原为 float
   CMD 0x6A  电机电流            int16, 单位 0.001A
   CMD 0x6C  错误码              uint16
+  CMD 0x6E  速度环参数          4 * int16，按 1/1000 还原为 float
+  CMD 0x6F  电流环参数          4 * int16，按 1/1000 还原为 float
 """
 
 import struct
@@ -32,6 +34,8 @@ CMD_DQ_COMPONENTS: int = 0x69
 CMD_MOTOR_CURRENT: int = 0x6A
 CMD_ERROR_CODE: int = 0x6C
 CMD_MOTOR_TYPE: int = 0x6D
+CMD_SPEED_LOOP_PARAMS: int = 0x6E
+CMD_CURRENT_LOOP_PARAMS: int = 0x6F
 
 
 class FrameDispatcher(QObject):
@@ -47,6 +51,8 @@ class FrameDispatcher(QObject):
     motorCurrentUpdated = Signal(float)               # 电机电流 A
 
     mcuMotorTypeUpdated = Signal(int)                # 电机类型 0~255
+    speedLoopParamsUpdated = Signal(float, float, float, float)    # Kp, Ki, Kd, Tf
+    currentLoopParamsUpdated = Signal(float, float, float, float)  # Kp, Ki, Kd, Tf
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -60,6 +66,8 @@ class FrameDispatcher(QObject):
             CMD_MOTOR_CURRENT: self._handle_motor_current,
             CMD_ERROR_CODE: self._handle_error_code,
             CMD_MOTOR_TYPE: self._handle_motor_type,
+            CMD_SPEED_LOOP_PARAMS: self._handle_speed_loop_params,
+            CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
         }
 
     @Slot(object)
@@ -138,3 +146,27 @@ class FrameDispatcher(QObject):
         if frame.datalen != 1:
             return
         self.mcuMotorTypeUpdated.emit(frame.data[0])
+
+    def _handle_speed_loop_params(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x6E：速度环参数，按 1/1000 还原为工程量。"""
+        if frame.datalen != 8:
+            return
+        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">hhhh", frame.data, 0)
+        self.speedLoopParamsUpdated.emit(
+            raw_kp / 1000.0,
+            raw_ki / 1000.0,
+            raw_kd / 1000.0,
+            raw_tf / 1000.0,
+        )
+
+    def _handle_current_loop_params(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x6F：电流环参数，按 1/1000 还原为工程量。"""
+        if frame.datalen != 8:
+            return
+        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">hhhh", frame.data, 0)
+        self.currentLoopParamsUpdated.emit(
+            raw_kp / 1000.0,
+            raw_ki / 1000.0,
+            raw_kd / 1000.0,
+            raw_tf / 1000.0,
+        )
