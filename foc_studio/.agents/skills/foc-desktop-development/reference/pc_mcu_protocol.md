@@ -80,6 +80,68 @@ Note:
 |------|------|------|-------------|
 | **DATA_LEN** | 0 |  | No payload |
 
+### CMD 0x05 - Query Speed Loop Params
+Direction: PC → MCU
+Description: PC 查询速度环 PID 参数。
+Frequence: On demand
+Note:
+- MCU 收到后立即以 CMD 0x6E 响应。
+- 由 `TUNE` 页的“读取参数”按钮触发，也会在 UI 从其他页面切换到 `TUNE` 时触发。
+- PC 侧会将 CMD 0x05 与 CMD 0x06 作为一组刷新动作连续发送。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
+### CMD 0x06 - Query Current Loop Params
+Direction: PC → MCU
+Description: PC 查询电流环 PID 参数。
+Frequence: On demand
+Note:
+- MCU 收到后立即以 CMD 0x6F 响应。
+- 由 `TUNE` 页的“读取参数”按钮触发，也会在 UI 从其他页面切换到 `TUNE` 时触发。
+- PC 侧会将 CMD 0x05 与 CMD 0x06 作为一组刷新动作连续发送。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
+### CMD 0x07 - Set Speed Loop Params
+Direction: PC → MCU
+Description: PC 设置速度环 PID 参数。
+Frequence: On demand
+Note:
+- payload 固定 8 字节，参数顺序：kp → ki → kd → tf。
+- 每个参数编码为 int16 Big Endian：`raw = round(value × 1000)`。
+- tf 单位为秒。
+- PC 不等待单独的写入应答帧；发送完 CMD 0x07 与 CMD 0x08 后，会立即再发 CMD 0x05 和 CMD 0x06 读回校验。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | kp（×1000 编码） |
+| 2 | 2 | int16 | ki（×1000 编码） |
+| 4 | 2 | int16 | kd（×1000 编码） |
+| 6 | 2 | int16 | tf，单位秒（×1000 编码） |
+| **DATA_LEN** | 8 |  |  |
+
+### CMD 0x08 - Set Current Loop Params
+Direction: PC → MCU
+Description: PC 设置电流环 PID 参数。
+Frequence: On demand
+Note:
+- payload 固定 8 字节，参数顺序：kp → ki → kd → tf。
+- 每个参数编码为 int16 Big Endian：`raw = round(value × 1000)`。
+- tf 单位为秒。
+- PC 不等待单独的写入应答帧；发送完 CMD 0x07 与 CMD 0x08 后，会立即再发 CMD 0x05 和 CMD 0x06 读回校验。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | kp（×1000 编码） |
+| 2 | 2 | int16 | ki（×1000 编码） |
+| 4 | 2 | int16 | kd（×1000 编码） |
+| 6 | 2 | int16 | tf，单位秒（×1000 编码） |
+| **DATA_LEN** | 8 |  |  |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -191,6 +253,40 @@ Note:
 |------|------|------|-------------|
 | 0 | 1 | uint8_t | 电机类型（1~5） |
 | **DATA_LEN** | 1 |  |  |
+
+### CMD 0x6E - Speed Loop Params Response
+Direction: MCU → PC
+Description: 响应 CMD 0x05，返回速度环 PID 参数。
+Frequence: 被动响应（仅在收到 CMD 0x05 后发送，不主动上报）
+Note:
+- payload 固定 8 字节，参数顺序：kp → ki → kd → tf。
+- 每个参数解码：`value = raw / 1000.0`（raw 为 int16 Big Endian）。
+- tf 单位为秒。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | kp（÷1000 解码） |
+| 2 | 2 | int16 | ki（÷1000 解码） |
+| 4 | 2 | int16 | kd（÷1000 解码） |
+| 6 | 2 | int16 | tf，单位秒（÷1000 解码） |
+| **DATA_LEN** | 8 |  |  |
+
+### CMD 0x6F - Current Loop Params Response
+Direction: MCU → PC
+Description: 响应 CMD 0x06，返回电流环 PID 参数。
+Frequence: 被动响应（仅在收到 CMD 0x06 后发送，不主动上报）
+Note:
+- payload 固定 8 字节，参数顺序：kp → ki → kd → tf。
+- 每个参数解码：`value = raw / 1000.0`（raw 为 int16 Big Endian）。
+- tf 单位为秒。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 2 | int16 | kp（÷1000 解码） |
+| 2 | 2 | int16 | ki（÷1000 解码） |
+| 4 | 2 | int16 | kd（÷1000 解码） |
+| 6 | 2 | int16 | tf，单位秒（÷1000 解码） |
+| **DATA_LEN** | 8 |  |  |
 
 
 ---
