@@ -535,10 +535,22 @@ Rectangle {
         }
     }
 
-    ColumnLayout {
+    ScrollView {
+        id: pageScrollView
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 8
+        clip: true
+        contentWidth: availableWidth
+
+        Item {
+            width: pageScrollView.availableWidth
+            implicitHeight: pageLayout.implicitHeight + 24
+
+            // 整个 TUNE 页面统一放入滚动容器，避免中间卡片的独立 ScrollView 影响上下间距
+            ColumnLayout {
+                id: pageLayout
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
 
         Rectangle {
             Layout.fillWidth: true
@@ -595,15 +607,6 @@ Rectangle {
             }
         }
 
-        ScrollView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-
-            ColumnLayout {
-                width: parent.width
-                spacing: 8
-
                 ParameterCard {
                     loopKey: "speedLoop"
                 }
@@ -611,8 +614,6 @@ Rectangle {
                 ParameterCard {
                     loopKey: "currentLoop"
                 }
-            }
-        }
 
         Rectangle {
             Layout.fillWidth: true
@@ -652,6 +653,8 @@ Rectangle {
                     normalColor: "#27ae60"
                     pressedColor: "#1e8449"
                     onClicked: root.triggerApply()
+                }
+            }
                 }
             }
         }
