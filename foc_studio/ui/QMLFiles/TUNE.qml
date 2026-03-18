@@ -157,7 +157,7 @@ Rectangle {
     // 统一格式化数值显示，避免多处重复 toFixed 逻辑
     function formatValue(value) {
         var numericValue = Number(value)
-        return isNaN(numericValue) ? "--" : numericValue.toFixed(3)
+        return isNaN(numericValue) ? "--" : numericValue.toFixed(6)
     }
 
     // 读取当前值对象中的指定字段
@@ -192,7 +192,7 @@ Rectangle {
 
     // 判断单个字段是否与当前值不同，用于显示“已修改”状态
     function isFieldDirty(loopKey, fieldKey) {
-        return Math.abs(readDraftParam(loopKey, fieldKey) - readCurrentParam(loopKey, fieldKey)) > 0.0005
+        return Math.abs(readDraftParam(loopKey, fieldKey) - readCurrentParam(loopKey, fieldKey)) > 0.0000005
     }
 
     // 判断页面是否存在尚未应用的改动
