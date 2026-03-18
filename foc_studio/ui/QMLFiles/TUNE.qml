@@ -539,10 +539,12 @@ Rectangle {
         id: pageScrollView
         anchors.fill: parent
         clip: true
-        contentWidth: availableWidth
+        // 内容宽度按 ScrollView 可视区域铺满，不随竖向滚动条预留宽度缩窄
+        contentWidth: width - leftPadding - rightPadding
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         Item {
-            width: pageScrollView.availableWidth
+            width: pageScrollView.width - pageScrollView.leftPadding - pageScrollView.rightPadding
             implicitHeight: pageLayout.implicitHeight + 24
 
             // 整个 TUNE 页面统一放入滚动容器，避免中间卡片的独立 ScrollView 影响上下间距
