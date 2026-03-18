@@ -21,17 +21,17 @@ CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
 
-_PARAM_SCALE: int = 1000
-_PARAM_RAW_MIN: int = -32768
-_PARAM_RAW_MAX: int = 32767
+_PARAM_SCALE: int = 1000000
+_PARAM_RAW_MIN: int = -2147483648
+_PARAM_RAW_MAX: int = 2147483647
 
 
 def _encode_control_param(value: float, field_name: str) -> int:
-    """将工程量参数按 x1000 编码为 int16。"""
+    """将工程量参数按 x1000000 编码为 int32。"""
     raw_value = int(round(float(value) * _PARAM_SCALE))
     if not (_PARAM_RAW_MIN <= raw_value <= _PARAM_RAW_MAX):
         raise ValueError(
-            f"{field_name} 超出 int16 x1000 可表示范围: {value}"
+            f"{field_name} 超出 int32 x1000000 可表示范围: {value}"
         )
     return raw_value
 
@@ -39,7 +39,7 @@ def _encode_control_param(value: float, field_name: str) -> int:
 def _build_set_loop_params(cmd: int, kp: float, ki: float, kd: float, tf: float) -> bytes:
     """按固定顺序 kp/ki/kd/tf 构造参数设置帧。"""
     payload = struct.pack(
-        ">hhhh",
+        ">iiii",
         _encode_control_param(kp, "kp"),
         _encode_control_param(ki, "ki"),
         _encode_control_param(kd, "kd"),

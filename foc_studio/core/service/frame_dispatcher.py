@@ -14,8 +14,8 @@
   CMD 0x69  Iq/Id/Uq/Ud         4 * int16，按 1/1000 还原为 float
   CMD 0x6A  电机电流            int16, 单位 0.001A
   CMD 0x6C  错误码              uint16
-  CMD 0x6E  速度环参数          4 * int16，按 1/1000 还原为 float
-  CMD 0x6F  电流环参数          4 * int16，按 1/1000 还原为 float
+  CMD 0x6E  速度环参数          4 * int32，按 1/1000000 还原为 float
+  CMD 0x6F  电流环参数          4 * int32，按 1/1000000 还原为 float
 """
 
 import struct
@@ -148,25 +148,25 @@ class FrameDispatcher(QObject):
         self.mcuMotorTypeUpdated.emit(frame.data[0])
 
     def _handle_speed_loop_params(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x6E：速度环参数，按 1/1000 还原为工程量。"""
-        if frame.datalen != 8:
+        """解码 CMD 0x6E：速度环参数，按 1/1000000 还原为工程量。"""
+        if frame.datalen != 16:
             return
-        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">hhhh", frame.data, 0)
+        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">iiii", frame.data, 0)
         self.speedLoopParamsUpdated.emit(
-            raw_kp / 1000.0,
-            raw_ki / 1000.0,
-            raw_kd / 1000.0,
-            raw_tf / 1000.0,
+            raw_kp / 1000000.0,
+            raw_ki / 1000000.0,
+            raw_kd / 1000000.0,
+            raw_tf / 1000000.0,
         )
 
     def _handle_current_loop_params(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x6F：电流环参数，按 1/1000 还原为工程量。"""
-        if frame.datalen != 8:
+        """解码 CMD 0x6F：电流环参数，按 1/1000000 还原为工程量。"""
+        if frame.datalen != 16:
             return
-        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">hhhh", frame.data, 0)
+        raw_kp, raw_ki, raw_kd, raw_tf = struct.unpack_from(">iiii", frame.data, 0)
         self.currentLoopParamsUpdated.emit(
-            raw_kp / 1000.0,
-            raw_ki / 1000.0,
-            raw_kd / 1000.0,
-            raw_tf / 1000.0,
+            raw_kp / 1000000.0,
+            raw_ki / 1000000.0,
+            raw_kd / 1000000.0,
+            raw_tf / 1000000.0,
         )
