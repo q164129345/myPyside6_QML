@@ -142,6 +142,19 @@ Note:
 | 12 | 4 | int32 | tf，单位秒（×1000000 编码） |
 | **DATA_LEN** | 16 |  |  |
 
+### CMD 0x09 - Save Current PID Params To Flash
+Direction: PC -> MCU
+Description: PC 命令 MCU 将当前正在运行的 PID 参数写入 FLASH。
+Frequence: 按需
+Note:
+- 无 DATA payload。
+- 该命令保存的是 MCU 当前已经生效的 PID 参数，不是 UI 中尚未应用的草稿值。
+- MCU 完成 FLASH 保存后，应以 CMD 0x70 返回保存结果。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -287,6 +300,19 @@ Note:
 | 8 | 4 | int32 | kd（÷1000000 解码） |
 | 12 | 4 | int32 | tf，单位秒（÷1000000 解码） |
 | **DATA_LEN** | 16 |  |  |
+
+### CMD 0x70 - Save PID Params Result
+Direction: MCU -> PC
+Description: 响应 CMD 0x09，返回 PID 参数写入 FLASH 的结果。
+Frequence: 被动响应（仅在收到 CMD 0x09 后发送，不主动上报）
+Note:
+- `status = 0x00` 表示保存成功。
+- `status = 0x01` 表示保存失败。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8 | status |
+| **DATA_LEN** | 1 |  |  |
 
 
 ---
