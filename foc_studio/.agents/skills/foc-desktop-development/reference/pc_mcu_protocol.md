@@ -157,6 +157,19 @@ Note:
 |------|------|------|-------------|
 | **DATA_LEN** | 0 |  | 无 payload |
 
+### CMD 0x0A - Reboot MCU
+Direction: PC → MCU
+Description: PC 命令 MCU 执行软件复位重启。
+Frequence: 按需
+Note:
+- 无 DATA payload。
+- MCU 收到该命令后，应先以 CMD 0x71 回传确认帧，再执行软件复位（确保 PC 侧能感知到重启动作）。
+- PC 侧收到 CMD 0x71 后，应将连接状态重置为"未连接"，并等待串口重新上线。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -317,6 +330,18 @@ Note:
 |------|------|------|-------------|
 | 0 | 1 | uint8 | status |
 | **DATA_LEN** | 1 |  |  |
+
+### CMD 0x71 - Reboot MCU Acknowledgement
+Direction: MCU → PC
+Description: 响应 CMD 0x0A，MCU 在执行软件复位前通知 PC 已收到重启指令。
+Frequence: 被动响应（仅在收到 CMD 0x0A 后发送，不主动上报）
+Note:
+- 无 DATA payload。
+- MCU 发送本帧后立即执行软件复位，PC 侧收到后应将连接状态重置为"未连接"。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
 
 
 ---
