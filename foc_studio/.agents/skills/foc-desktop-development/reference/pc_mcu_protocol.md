@@ -112,7 +112,8 @@ Description: PC 设置速度环 PID 参数。
 Frequence: On demand
 Note:
 - payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
-- 每个参数编码为 int32 Big Endian：`raw = round(value × 1000000)`。
+- PC 侧编码：`raw = round(value × 1000000)`，打包为 int32 Big Endian 发送。
+- MCU 侧解码：`value = raw / 1000000.0f`。
 - tf 单位为秒。
 - PC 不等待单独的写入应答帧；发送完 CMD 0x07 与 CMD 0x08 后，会立即再发 CMD 0x05 和 CMD 0x06 读回校验。
 
@@ -130,7 +131,8 @@ Description: PC 设置电流环 PID 参数。
 Frequence: On demand
 Note:
 - payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
-- 每个参数编码为 int32 Big Endian：`raw = round(value × 1000000)`。
+- PC 侧编码：`raw = round(value × 1000000)`，打包为 int32 Big Endian 发送。
+- MCU 侧解码：`value = raw / 1000000.0f`。
 - tf 单位为秒。
 - PC 不等待单独的写入应答帧；发送完 CMD 0x07 与 CMD 0x08 后，会立即再发 CMD 0x05 和 CMD 0x06 读回校验。
 
@@ -273,7 +275,8 @@ Description: 响应 CMD 0x05，返回速度环 PID 参数。
 Frequence: 被动响应（仅在收到 CMD 0x05 后发送，不主动上报）
 Note:
 - payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
-- 每个参数解码：`value = raw / 1000000.0`（raw 为 int32 Big Endian）。
+- MCU 侧编码：`raw = (int32_t)roundf(value × 1000000)`，打包为 int32 Big Endian 发送。
+- PC 侧解码：`value = raw / 1000000.0`。
 - tf 单位为秒。
 
 | Offset | Size | Type | Description |
@@ -290,7 +293,8 @@ Description: 响应 CMD 0x06，返回电流环 PID 参数。
 Frequence: 被动响应（仅在收到 CMD 0x06 后发送，不主动上报）
 Note:
 - payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
-- 每个参数解码：`value = raw / 1000000.0`（raw 为 int32 Big Endian）。
+- MCU 侧编码：`raw = (int32_t)roundf(value × 1000000)`，打包为 int32 Big Endian 发送。
+- PC 侧解码：`value = raw / 1000000.0`。
 - tf 单位为秒。
 
 | Offset | Size | Type | Description |
