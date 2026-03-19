@@ -108,7 +108,9 @@ Rectangle {
         var busyInfo = readBackendMember("controlParamsBusy")
         var statusInfo = readBackendMember("controlParamsLastStatus")
         var backendReady = paramsInfo.exists || availableInfo.exists || busyInfo.exists || statusInfo.exists
-                           || hasBackendMethod("queryControlParams") || hasBackendMethod("applyControlParams")
+                           || hasBackendMethod("queryControlParams")
+                           || hasBackendMethod("applyControlParams")
+                           || hasBackendMethod("saveCurrentControlParamsToFlash")
 
         demoMode = !backendReady
         currentControlParams = normalizeParams(paramsInfo.exists ? paramsInfo.value : fallbackControlParams)
@@ -248,7 +250,7 @@ Rectangle {
         controlParamsLastStatus = "UI 演示模式：已加载本地占位参数"
     }
 
-    // 触发一次参数应用；如果后端未接入则在本地模拟应用并保存
+    // 触发一次参数应用；如果后端未接入则在本地模拟应用运行参数
     function triggerApply() {
         if (!isSerialConnected || controlParamsBusy) {
             return
@@ -257,7 +259,7 @@ Rectangle {
         var payload = buildApplyPayload()
 
         if (hasBackendMethod("applyControlParams")) {
-            controlParamsLastStatus = "正在应用并保存参数..."
+            controlParamsLastStatus = "正在应用参数..."
             controlParamsBusy = true
             try {
                 backend.applyControlParams(payload)
@@ -273,7 +275,28 @@ Rectangle {
         controlParamsAvailable = true
         restoreDraftFromCurrent()
         controlParamsBusy = false
-        controlParamsLastStatus = "UI 演示模式：已本地应用并假定已持久化"
+        controlParamsLastStatus = "UI 演示模式：已本地应用参数"
+    }
+
+    // 触发一次参数保存；保存来源始终是 MCU 当前运行参数，而不是编辑框草稿
+    function triggerSave() {
+        if (!isSerialConnected || controlParamsBusy || !controlParamsAvailable) {
+            return
+        }
+
+        if (hasBackendMethod("saveCurrentControlParamsToFlash")) {
+            controlParamsLastStatus = "正在保存参数到 FLASH..."
+            controlParamsBusy = true
+            try {
+                backend.saveCurrentControlParamsToFlash()
+            } catch (error) {
+                controlParamsBusy = false
+                controlParamsLastStatus = "调用 saveCurrentControlParamsToFlash() 失败"
+            }
+            return
+        }
+
+        controlParamsLastStatus = "UI 演示模式：未执行实际 FLASH 保存"
     }
 
     component InputField: Rectangle {
@@ -650,11 +673,19 @@ Rectangle {
                 }
 
                 ActionButton {
-                    text: "应用并保存"
+                    text: "应用"
                     enabled: root.isSerialConnected && !root.controlParamsBusy && root.controlParamsAvailable && root.hasDirtyFields()
                     normalColor: "#27ae60"
                     pressedColor: "#1e8449"
                     onClicked: root.triggerApply()
+                }
+
+                ActionButton {
+                    text: "参数保存"
+                    enabled: root.isSerialConnected && !root.controlParamsBusy && root.controlParamsAvailable
+                    normalColor: "#16a085"
+                    pressedColor: "#117864"
+                    onClicked: root.triggerSave()
                 }
             }
                 }

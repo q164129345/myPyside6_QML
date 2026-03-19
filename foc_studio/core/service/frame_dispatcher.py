@@ -1,10 +1,8 @@
 """FrameDispatcher - 帧分发器。
-
 职责：
   - 接收来自 DataProcessor 的 ParsedFrame
   - 根据 CMD 路由到对应解码方法
   - 将 payload 解码为业务语义信号
-
 协议支持（MCU -> PC）：
   CMD 0x64  转速反馈            int16, rpm
   CMD 0x65  电机温度            int16, 单位 0.1℃
@@ -14,8 +12,10 @@
   CMD 0x69  Iq/Id/Uq/Ud         4 * int16，按 1/1000 还原为 float
   CMD 0x6A  电机电流            int16, 单位 0.001A
   CMD 0x6C  错误码              uint16
+  CMD 0x6D  电机类型            uint8
   CMD 0x6E  速度环参数          4 * int32，按 1/1000000 还原为 float
   CMD 0x6F  电流环参数          4 * int32，按 1/1000000 还原为 float
+  CMD 0x70  PID 参数保存结果     uint8，0=成功 1=失败
 """
 
 import struct
@@ -36,6 +36,7 @@ CMD_ERROR_CODE: int = 0x6C
 CMD_MOTOR_TYPE: int = 0x6D
 CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
+CMD_SAVE_PID_PARAMS_RESULT: int = 0x70
 
 
 class FrameDispatcher(QObject):
@@ -50,9 +51,10 @@ class FrameDispatcher(QObject):
     dqComponentsUpdated = Signal(float, float, float, float)  # Iq, Id, Uq, Ud
     motorCurrentUpdated = Signal(float)               # 电机电流 A
 
-    mcuMotorTypeUpdated = Signal(int)                # 电机类型 0~255
+    mcuMotorTypeUpdated = Signal(int)                 # 电机类型 0~255
     speedLoopParamsUpdated = Signal(float, float, float, float)    # Kp, Ki, Kd, Tf
     currentLoopParamsUpdated = Signal(float, float, float, float)  # Kp, Ki, Kd, Tf
+    savePidParamsResultUpdated = Signal(int)          # 0=成功 1=失败
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,6 +70,7 @@ class FrameDispatcher(QObject):
             CMD_MOTOR_TYPE: self._handle_motor_type,
             CMD_SPEED_LOOP_PARAMS: self._handle_speed_loop_params,
             CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
+            CMD_SAVE_PID_PARAMS_RESULT: self._handle_save_pid_params_result,
         }
 
     @Slot(object)
@@ -170,3 +173,9 @@ class FrameDispatcher(QObject):
             raw_kd / 1000000.0,
             raw_tf / 1000000.0,
         )
+
+    def _handle_save_pid_params_result(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x70：PID 参数保存结果。"""
+        if frame.datalen != 1:
+            return
+        self.savePidParamsResultUpdated.emit(frame.data[0])

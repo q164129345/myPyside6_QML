@@ -1,8 +1,7 @@
 """
 Command 层：TUNE 页面控制参数命令构造。
-
 职责：
-    - 定义速度环 / 电流环参数读写命令字
+    - 定义速度环 / 电流环参数读写与保存命令字
     - 将 QML / Backend 的工程量参数编码成协议帧
 
 约束（Layer Contracts）：
@@ -15,11 +14,12 @@ import struct
 
 from core.protocol.protocol_frame import pack_frame
 
-# 参数查询 / 设置命令字
+# 参数查询 / 设置 / 保存命令字
 CMD_QUERY_SPEED_LOOP_PARAMS: int = 0x05
 CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
+CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH: int = 0x09
 
 _PARAM_SCALE: int = 1000000
 _PARAM_RAW_MIN: int = -2147483648
@@ -66,3 +66,8 @@ def build_set_speed_loop_params(kp: float, ki: float, kd: float, tf: float) -> b
 def build_set_current_loop_params(kp: float, ki: float, kd: float, tf: float) -> bytes:
     """构造电流环参数设置帧。"""
     return _build_set_loop_params(CMD_SET_CURRENT_LOOP_PARAMS, kp, ki, kd, tf)
+
+
+def build_save_current_pid_params_to_flash() -> bytes:
+    """构造将当前 PID 参数写入 FLASH 的命令帧。"""
+    return pack_frame(CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH)
