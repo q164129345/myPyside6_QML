@@ -170,6 +170,34 @@ Note:
 |------|------|------|-------------|
 | **DATA_LEN** | 0 |  | 无 payload |
 
+### CMD 0x0B - Query Motor Limits
+Direction: PC → MCU
+Description: PC 查询电机的 voltage_limit 与 current_limit 参数。
+Frequence: 按需
+Note:
+- 无 DATA payload。
+- MCU 收到后立即以 CMD 0x72 响应。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
+### CMD 0x0C - Set Motor Limits
+Direction: PC → MCU
+Description: PC 设置电机的 voltage_limit 与 current_limit 参数。
+Frequence: 按需
+Note:
+- payload 固定 8 字节，参数顺序：voltage_limit → current_limit。
+- PC 侧编码：`raw = round(value × 100000000)`，打包为 int32 Big Endian 发送。
+- MCU 侧解码：`value = raw / 100000000.0f`。
+- PC 不等待单独的写入应答帧；发送完 CMD 0x0C 后，会立即再发 CMD 0x0B 读回校验。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 4 | int32 | voltage_limit（×100000000 编码） |
+| 4 | 4 | int32 | current_limit（×100000000 编码） |
+| **DATA_LEN** | 8 |  |  |
+
 ## MCU -> PC
 
 ### CMD 0x64 - Speed Feedback
@@ -342,6 +370,21 @@ Note:
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | **DATA_LEN** | 0 |  | 无 payload |
+
+### CMD 0x72 - Motor Limits Response
+Direction: MCU → PC
+Description: 响应 CMD 0x0B，返回电机的 voltage_limit 与 current_limit 参数。
+Frequence: 被动响应（仅在收到 CMD 0x0B 后发送，不主动上报）
+Note:
+- payload 固定 8 字节，参数顺序：voltage_limit → current_limit。
+- MCU 侧编码：`raw = (int32_t)roundf(value × 100000000)`，打包为 int32 Big Endian 发送。
+- PC 侧解码：`value = raw / 100000000.0`。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 4 | int32 | voltage_limit（÷100000000 解码） |
+| 4 | 4 | int32 | current_limit（÷100000000 解码） |
+| **DATA_LEN** | 8 |  |  |
 
 
 ---
