@@ -20,18 +20,20 @@ CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
 CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH: int = 0x09
+CMD_QUERY_MOTOR_LIMITS: int = 0x0B
+CMD_SET_MOTOR_LIMITS: int = 0x0C
 
 _PARAM_SCALE: int = 1000000
 _PARAM_RAW_MIN: int = -2147483648
 _PARAM_RAW_MAX: int = 2147483647
 
 
-def _encode_control_param(value: float, field_name: str) -> int:
-    """将工程量参数按 x1000000 编码为 int32。"""
-    raw_value = int(round(float(value) * _PARAM_SCALE))
+def _encode_scaled_int32(value: float, field_name: str, scale: int) -> int:
+    """将工程量参数按指定倍率编码为 int32。"""
+    raw_value = int(round(float(value) * scale))
     if not (_PARAM_RAW_MIN <= raw_value <= _PARAM_RAW_MAX):
         raise ValueError(
-            f"{field_name} 超出 int32 x1000000 可表示范围: {value}"
+            f"{field_name} 超出 int32 x{scale} 可表示范围: {value}"
         )
     return raw_value
 
@@ -40,10 +42,10 @@ def _build_set_loop_params(cmd: int, kp: float, ki: float, kd: float, tf: float)
     """按固定顺序 kp/ki/kd/tf 构造参数设置帧。"""
     payload = struct.pack(
         ">iiii",
-        _encode_control_param(kp, "kp"),
-        _encode_control_param(ki, "ki"),
-        _encode_control_param(kd, "kd"),
-        _encode_control_param(tf, "tf"),
+        _encode_scaled_int32(kp, "kp", _PARAM_SCALE),
+        _encode_scaled_int32(ki, "ki", _PARAM_SCALE),
+        _encode_scaled_int32(kd, "kd", _PARAM_SCALE),
+        _encode_scaled_int32(tf, "tf", _PARAM_SCALE),
     )
     return pack_frame(cmd, payload)
 
@@ -66,6 +68,21 @@ def build_set_speed_loop_params(kp: float, ki: float, kd: float, tf: float) -> b
 def build_set_current_loop_params(kp: float, ki: float, kd: float, tf: float) -> bytes:
     """构造电流环参数设置帧。"""
     return _build_set_loop_params(CMD_SET_CURRENT_LOOP_PARAMS, kp, ki, kd, tf)
+
+
+def build_query_motor_limits() -> bytes:
+    """构造电机限幅参数查询帧。"""
+    return pack_frame(CMD_QUERY_MOTOR_LIMITS)
+
+
+def build_set_motor_limits(voltage_limit: float, current_limit: float) -> bytes:
+    """构造电机限幅参数设置帧。"""
+    payload = struct.pack(
+        ">ii",
+        _encode_scaled_int32(voltage_limit, "voltage_limit", _PARAM_SCALE),
+        _encode_scaled_int32(current_limit, "current_limit", _PARAM_SCALE),
+    )
+    return pack_frame(CMD_SET_MOTOR_LIMITS, payload)
 
 
 def build_save_current_pid_params_to_flash() -> bytes:

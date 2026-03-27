@@ -4,8 +4,10 @@ from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
     build_query_current_loop_params,
+    build_query_motor_limits,
     build_query_speed_loop_params,
     build_set_current_loop_params,
+    build_set_motor_limits,
     build_set_speed_loop_params,
 )
 
@@ -15,7 +17,9 @@ __all__ = [
     "build_pc_heartbeat",
     "build_query_software_version",
     "build_query_current_loop_params",
+    "build_query_motor_limits",
     "build_query_speed_loop_params",
     "build_set_current_loop_params",
+    "build_set_motor_limits",
     "build_set_speed_loop_params",
 ]

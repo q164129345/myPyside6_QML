@@ -16,6 +16,7 @@
   CMD 0x6E  速度环参数          4 * int32，按 1/1000000 还原为 float
   CMD 0x6F  电流环参数          4 * int32，按 1/1000000 还原为 float
   CMD 0x70  PID 参数保存结果     uint8，0=成功 1=失败
+  CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
 """
 
 import struct
@@ -37,6 +38,7 @@ CMD_MOTOR_TYPE: int = 0x6D
 CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
 CMD_SAVE_PID_PARAMS_RESULT: int = 0x70
+CMD_MOTOR_LIMITS: int = 0x72
 
 
 class FrameDispatcher(QObject):
@@ -55,6 +57,7 @@ class FrameDispatcher(QObject):
     speedLoopParamsUpdated = Signal(float, float, float, float)    # Kp, Ki, Kd, Tf
     currentLoopParamsUpdated = Signal(float, float, float, float)  # Kp, Ki, Kd, Tf
     savePidParamsResultUpdated = Signal(int)          # 0=成功 1=失败
+    motorLimitsUpdated = Signal(float, float)         # voltage_limit, current_limit
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +74,7 @@ class FrameDispatcher(QObject):
             CMD_SPEED_LOOP_PARAMS: self._handle_speed_loop_params,
             CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
             CMD_SAVE_PID_PARAMS_RESULT: self._handle_save_pid_params_result,
+            CMD_MOTOR_LIMITS: self._handle_motor_limits,
         }
 
     @Slot(object)
@@ -179,3 +183,13 @@ class FrameDispatcher(QObject):
         if frame.datalen != 1:
             return
         self.savePidParamsResultUpdated.emit(frame.data[0])
+
+    def _handle_motor_limits(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x72：电机限幅参数，按 1/1000000 还原为工程量。"""
+        if frame.datalen != 8:
+            return
+        raw_voltage_limit, raw_current_limit = struct.unpack_from(">ii", frame.data, 0)
+        self.motorLimitsUpdated.emit(
+            raw_voltage_limit / 1000000.0,
+            raw_current_limit / 1000000.0,
+        )

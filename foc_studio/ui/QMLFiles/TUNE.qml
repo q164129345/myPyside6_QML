@@ -29,6 +29,8 @@ Rectangle {
     property bool demoMode: true
     // 用于在程序修改草稿时刷新各行输入框
     property int draftRevision: 0
+    // 读取/应用流程中是否持续让编辑草稿跟随后端回读
+    property bool keepDraftSyncedToBackend: true
     // 参数行数据模型，用于生成速度环与电流环的 8 行控件
     readonly property var parameterFields: [
         { "fieldKey": "kp", "label": "Kp", "unit": "" },
@@ -36,12 +38,24 @@ Rectangle {
         { "fieldKey": "kd", "label": "Kd", "unit": "" },
         { "fieldKey": "tf", "label": "Tf", "unit": "s" }
     ]
+    // 电机限幅参数行数据模型，用于生成 voltage_limit 与 current_limit 的 2 行控件
+    readonly property var motorLimitFields: [
+        { "fieldKey": "voltage_limit", "label": "Voltage Limit", "unit": "V" },
+        { "fieldKey": "current_limit", "label": "Current Limit", "unit": "A" }
+    ]
+    // 页面上的参数分组定义，统一驱动三张卡片渲染
+    readonly property var parameterGroups: [
+        { "groupKey": "speedLoop", "title": "速度环参数", "fields": parameterFields },
+        { "groupKey": "currentLoop", "title": "电流环参数", "fields": parameterFields },
+        { "groupKey": "motorLimits", "title": "电机限幅参数", "fields": motorLimitFields }
+    ]
 
     // 生成 UI 占位参数，保证在后端接口未就绪时页面可完整演示
     function createDefaultParams() {
         return {
             "speedLoop": { "kp": 0.350, "ki": 12.000, "kd": 0.000, "tf": 0.010 },
-            "currentLoop": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "tf": 0.005 }
+            "currentLoop": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "tf": 0.005 },
+            "motorLimits": { "voltage_limit": 12.000, "current_limit": 5.000 }
         }
     }
 
@@ -55,18 +69,17 @@ Rectangle {
         var defaults = createDefaultParams()
         var source = params || {}
         var normalized = cloneParams(defaults)
-        var loopKeys = ["speedLoop", "currentLoop"]
 
-        for (var loopIndex = 0; loopIndex < loopKeys.length; loopIndex++) {
-            var loopKey = loopKeys[loopIndex]
-            var sourceLoop = source[loopKey] || {}
-            var fieldKeys = ["kp", "ki", "kd", "tf"]
+        for (var groupIndex = 0; groupIndex < parameterGroups.length; groupIndex++) {
+            var groupKey = parameterGroups[groupIndex].groupKey
+            var sourceGroup = source[groupKey] || {}
+            var fields = parameterGroups[groupIndex].fields
 
-            for (var fieldIndex = 0; fieldIndex < fieldKeys.length; fieldIndex++) {
-                var fieldKey = fieldKeys[fieldIndex]
-                if (typeof sourceLoop[fieldKey] !== "undefined" && sourceLoop[fieldKey] !== null) {
-                    var numericValue = Number(sourceLoop[fieldKey])
-                    normalized[loopKey][fieldKey] = isNaN(numericValue) ? defaults[loopKey][fieldKey] : numericValue
+            for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+                var fieldKey = fields[fieldIndex].fieldKey
+                if (typeof sourceGroup[fieldKey] !== "undefined" && sourceGroup[fieldKey] !== null) {
+                    var numericValue = Number(sourceGroup[fieldKey])
+                    normalized[groupKey][fieldKey] = isNaN(numericValue) ? defaults[groupKey][fieldKey] : numericValue
                 }
             }
         }
@@ -127,7 +140,7 @@ Rectangle {
             controlParamsLastStatus = "未读取参数"
         }
 
-        if (resetDraft || !hasDirtyFields()) {
+        if (resetDraft || keepDraftSyncedToBackend || !hasDirtyFields()) {
             restoreDraftFromCurrent()
         }
     }
@@ -149,11 +162,6 @@ Rectangle {
     // 统一生成串口连接状态文案
     function connectionStatusText() {
         return isSerialConnected ? "已连接" : "未连接"
-    }
-
-    // 根据环路 key 返回卡片标题
-    function loopTitle(loopKey) {
-        return loopKey === "speedLoop" ? "速度环参数" : "电流环参数"
     }
 
     // 统一格式化数值显示，避免多处重复 toFixed 逻辑
@@ -183,6 +191,9 @@ Rectangle {
         var trimmedText = String(textValue).trim()
         var numericValue = Number(trimmedText)
 
+        // 用户开始手动编辑后，停止自动用回读值覆盖草稿
+        keepDraftSyncedToBackend = false
+
         if (trimmedText.length === 0 || isNaN(numericValue)) {
             nextParams[loopKey][fieldKey] = currentControlParams[loopKey][fieldKey]
         } else {
@@ -199,12 +210,11 @@ Rectangle {
 
     // 判断页面是否存在尚未应用的改动
     function hasDirtyFields() {
-        var loopKeys = ["speedLoop", "currentLoop"]
-        var fieldKeys = ["kp", "ki", "kd", "tf"]
-
-        for (var loopIndex = 0; loopIndex < loopKeys.length; loopIndex++) {
-            for (var fieldIndex = 0; fieldIndex < fieldKeys.length; fieldIndex++) {
-                if (isFieldDirty(loopKeys[loopIndex], fieldKeys[fieldIndex])) {
+        for (var groupIndex = 0; groupIndex < parameterGroups.length; groupIndex++) {
+            var groupKey = parameterGroups[groupIndex].groupKey
+            var fields = parameterGroups[groupIndex].fields
+            for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+                if (isFieldDirty(groupKey, fields[fieldIndex].fieldKey)) {
                     return true
                 }
             }
@@ -229,6 +239,8 @@ Rectangle {
         if (!isSerialConnected || controlParamsBusy) {
             return
         }
+
+        keepDraftSyncedToBackend = true
 
         if (hasBackendMethod("queryControlParams")) {
             controlParamsLastStatus = "正在读取参数..."
@@ -257,6 +269,7 @@ Rectangle {
         }
 
         var payload = buildApplyPayload()
+        keepDraftSyncedToBackend = true
 
         if (hasBackendMethod("applyControlParams")) {
             controlParamsLastStatus = "正在应用参数..."
@@ -462,7 +475,9 @@ Rectangle {
 
     component ParameterCard: Rectangle {
         id: cardRoot
-        required property string loopKey
+        required property string groupKey
+        required property string titleText
+        required property var fieldsModel
 
         Layout.fillWidth: true
         implicitHeight: cardLayout.implicitHeight + 32
@@ -478,7 +493,7 @@ Rectangle {
             spacing: 12
 
             Text {
-                text: root.loopTitle(cardRoot.loopKey)
+                text: cardRoot.titleText
                 font.pixelSize: 16
                 font.bold: true
                 color: "#2c3e50"
@@ -538,7 +553,7 @@ Rectangle {
             }
 
             Repeater {
-                model: root.parameterFields
+                model: cardRoot.fieldsModel
 
                 delegate: Item {
                     required property var modelData
@@ -548,7 +563,7 @@ Rectangle {
                     ParameterRow {
                         id: rowItem
                         width: parent.width
-                        loopKey: cardRoot.loopKey
+                        loopKey: cardRoot.groupKey
                         fieldKey: modelData.fieldKey
                         labelText: modelData.label
                         unitText: modelData.unit
@@ -632,12 +647,15 @@ Rectangle {
             }
         }
 
-                ParameterCard {
-                    loopKey: "speedLoop"
-                }
+                Repeater {
+                    model: root.parameterGroups
 
-                ParameterCard {
-                    loopKey: "currentLoop"
+                    delegate: ParameterCard {
+                        required property var modelData
+                        groupKey: modelData.groupKey
+                        titleText: modelData.title
+                        fieldsModel: modelData.fields
+                    }
                 }
 
         Rectangle {
