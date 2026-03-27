@@ -15,7 +15,7 @@
   CMD 0x6D  电机类型            uint8
   CMD 0x6E  速度环参数          4 * int32，按 1/1000000 还原为 float
   CMD 0x6F  电流环参数          4 * int32，按 1/1000000 还原为 float
-  CMD 0x70  PID 参数保存结果     uint8，0=成功 1=失败
+  CMD 0x70  TUNE 参数保存结果     uint8，0=成功 1=失败
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
 """
 
@@ -37,7 +37,7 @@ CMD_ERROR_CODE: int = 0x6C
 CMD_MOTOR_TYPE: int = 0x6D
 CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
-CMD_SAVE_PID_PARAMS_RESULT: int = 0x70
+CMD_SAVE_TUNE_PARAMS_RESULT: int = 0x70
 CMD_MOTOR_LIMITS: int = 0x72
 
 
@@ -56,7 +56,7 @@ class FrameDispatcher(QObject):
     mcuMotorTypeUpdated = Signal(int)                 # 电机类型 0~255
     speedLoopParamsUpdated = Signal(float, float, float, float)    # Kp, Ki, Kd, Tf
     currentLoopParamsUpdated = Signal(float, float, float, float)  # Kp, Ki, Kd, Tf
-    savePidParamsResultUpdated = Signal(int)          # 0=成功 1=失败
+    saveTuneParamsResultUpdated = Signal(int)          # 0=成功 1=失败
     motorLimitsUpdated = Signal(float, float)         # voltage_limit, current_limit
 
     def __init__(self, parent=None):
@@ -73,7 +73,7 @@ class FrameDispatcher(QObject):
             CMD_MOTOR_TYPE: self._handle_motor_type,
             CMD_SPEED_LOOP_PARAMS: self._handle_speed_loop_params,
             CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
-            CMD_SAVE_PID_PARAMS_RESULT: self._handle_save_pid_params_result,
+            CMD_SAVE_TUNE_PARAMS_RESULT: self._handle_save_tune_params_result,
             CMD_MOTOR_LIMITS: self._handle_motor_limits,
         }
 
@@ -178,11 +178,11 @@ class FrameDispatcher(QObject):
             raw_tf / 1000000.0,
         )
 
-    def _handle_save_pid_params_result(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x70：PID 参数保存结果。"""
+    def _handle_save_tune_params_result(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x70：TUNE 参数保存结果。"""
         if frame.datalen != 1:
             return
-        self.savePidParamsResultUpdated.emit(frame.data[0])
+        self.saveTuneParamsResultUpdated.emit(frame.data[0])
 
     def _handle_motor_limits(self, frame: ParsedFrame) -> None:
         """解码 CMD 0x72：电机限幅参数，按 1/1000000 还原为工程量。"""

@@ -7,7 +7,7 @@ from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
-    build_save_current_pid_params_to_flash,
+    build_save_current_tune_params_to_flash,
     build_query_current_loop_params,
     build_query_motor_limits,
     build_query_speed_loop_params,
@@ -160,7 +160,7 @@ class BackendFacade(QObject):
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
-        self._dispatcher.savePidParamsResultUpdated.connect(self._on_save_pid_params_result_updated)
+        self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
         self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
@@ -348,7 +348,7 @@ class BackendFacade(QObject):
 
     @Slot()
     def saveCurrentControlParamsToFlash(self) -> None:
-        """触发 MCU 将当前运行中的 PID 参数写入 FLASH。"""
+        """触发 MCU 将当前运行中的所有 TUNE 参数写入 FLASH。"""
         if not self._serial.isConnected:
             self._set_control_params_last_status("串口未连接，无法保存参数到 FLASH")
             return
@@ -364,7 +364,7 @@ class BackendFacade(QObject):
         self._set_control_params_busy(True)
         self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVING)
         self._tune_param_timeout_timer.setInterval(TUNE_PARAM_SAVE_TIMEOUT_MS)
-        self._serial.sendData(build_save_current_pid_params_to_flash())
+        self._serial.sendData(build_save_current_tune_params_to_flash())
         self._tune_param_timeout_timer.start()
 
     def _send_motor_cmd(self) -> None:
@@ -581,8 +581,8 @@ class BackendFacade(QObject):
         self._finish_param_loop_response("motorLimits")
 
     @Slot(int)
-    def _on_save_pid_params_result_updated(self, status: int) -> None:
-        """处理 MCU 返回的 PID 参数保存结果。"""
+    def _on_save_tune_params_result_updated(self, status: int) -> None:
+        """处理 MCU 返回的 TUNE 参数保存结果。"""
         if not self._save_to_flash_pending:
             return
 
