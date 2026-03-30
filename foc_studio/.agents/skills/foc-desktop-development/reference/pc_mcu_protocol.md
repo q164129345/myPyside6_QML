@@ -350,9 +350,9 @@ Note:
 | 16 | 4 | int32 | tf，单位秒（÷1000000 解码） |
 | **DATA_LEN** | 20 |  |  |
 
-### CMD 0x70 - Save PID Params Result
+### CMD 0x70 - Save Tune Params Result
 Direction: MCU -> PC
-Description: 响应 CMD 0x09，返回 PID 参数写入 FLASH 的结果。
+Description: 响应 CMD 0x09，返回 Tune 参数写入 FLASH 的结果。
 Frequence: 被动响应（仅在收到 CMD 0x09 后发送，不主动上报）
 Note:
 - `status = 0x00` 表示保存成功。
