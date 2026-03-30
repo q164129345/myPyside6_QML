@@ -111,10 +111,10 @@ Direction: PC → MCU
 Description: PC 设置速度环 PID 参数。
 Frequence: On demand
 Note:
-- payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
+- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
 - PC 侧编码：`raw = round(value × 1000000)`，打包为 int32 Big Endian 发送。
 - MCU 侧解码：`value = raw / 1000000.0f`。
-- tf 单位为秒。
+- ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 - PC 不等待单独的写入应答帧；发送完 CMD 0x07、CMD 0x08 与 CMD 0x0C 后，会立即再发 CMD 0x05、CMD 0x06 和 CMD 0x0B 读回校验。
 
 | Offset | Size | Type | Description |
@@ -122,18 +122,19 @@ Note:
 | 0 | 4 | int32 | kp（×1000000 编码） |
 | 4 | 4 | int32 | ki（×1000000 编码） |
 | 8 | 4 | int32 | kd（×1000000 编码） |
-| 12 | 4 | int32 | tf，单位秒（×1000000 编码） |
-| **DATA_LEN** | 16 |  |  |
+| 12 | 4 | int32 | ramp，output_ramp（×1000000 编码） |
+| 16 | 4 | int32 | tf，单位秒（×1000000 编码） |
+| **DATA_LEN** | 20 |  |  |
 
 ### CMD 0x08 - Set Current Loop Params
 Direction: PC → MCU
 Description: PC 设置电流环 PID 参数。
 Frequence: On demand
 Note:
-- payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
+- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
 - PC 侧编码：`raw = round(value × 1000000)`，打包为 int32 Big Endian 发送。
 - MCU 侧解码：`value = raw / 1000000.0f`。
-- tf 单位为秒。
+- ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 - PC 不等待单独的写入应答帧；发送完 CMD 0x07、CMD 0x08 与 CMD 0x0C 后，会立即再发 CMD 0x05、CMD 0x06 和 CMD 0x0B 读回校验。
 
 | Offset | Size | Type | Description |
@@ -141,16 +142,17 @@ Note:
 | 0 | 4 | int32 | kp（×1000000 编码） |
 | 4 | 4 | int32 | ki（×1000000 编码） |
 | 8 | 4 | int32 | kd（×1000000 编码） |
-| 12 | 4 | int32 | tf，单位秒（×1000000 编码） |
-| **DATA_LEN** | 16 |  |  |
+| 12 | 4 | int32 | ramp，output_ramp（×1000000 编码） |
+| 16 | 4 | int32 | tf，单位秒（×1000000 编码） |
+| **DATA_LEN** | 20 |  |  |
 
-### CMD 0x09 - Save Current Tune Params To Flash
+### CMD 0x09 - Save Current PID Params To Flash
 Direction: PC -> MCU
-Description: PC 命令 MCU 将当前正在运行的所有 TUNE 参数（速度环、电流环 PID 及电机限幅）写入 FLASH。
+Description: PC 命令 MCU 将当前正在运行的 PID 参数写入 FLASH。
 Frequence: 按需
 Note:
 - 无 DATA payload。
-- 该命令保存的是 MCU 当前已经生效的所有 TUNE 参数，不是 UI 中尚未应用的草稿值。
+- 该命令保存的是 MCU 当前已经生效的 PID 参数，不是 UI 中尚未应用的草稿值。
 - MCU 完成 FLASH 保存后，应以 CMD 0x70 返回保存结果。
 
 | Offset | Size | Type | Description |
@@ -315,40 +317,42 @@ Direction: MCU → PC
 Description: 响应 CMD 0x05，返回速度环 PID 参数。
 Frequence: 被动响应（仅在收到 CMD 0x05 后发送，不主动上报）
 Note:
-- payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
+- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
 - MCU 侧编码：`raw = (int32_t)roundf(value × 1000000)`，打包为 int32 Big Endian 发送。
 - PC 侧解码：`value = raw / 1000000.0`。
-- tf 单位为秒。
+- ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 4 | int32 | kp（÷1000000 解码） |
 | 4 | 4 | int32 | ki（÷1000000 解码） |
 | 8 | 4 | int32 | kd（÷1000000 解码） |
-| 12 | 4 | int32 | tf，单位秒（÷1000000 解码） |
-| **DATA_LEN** | 16 |  |  |
+| 12 | 4 | int32 | ramp，output_ramp（÷1000000 解码） |
+| 16 | 4 | int32 | tf，单位秒（÷1000000 解码） |
+| **DATA_LEN** | 20 |  |  |
 
 ### CMD 0x6F - Current Loop Params Response
 Direction: MCU → PC
 Description: 响应 CMD 0x06，返回电流环 PID 参数。
 Frequence: 被动响应（仅在收到 CMD 0x06 后发送，不主动上报）
 Note:
-- payload 固定 16 字节，参数顺序：kp → ki → kd → tf。
+- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
 - MCU 侧编码：`raw = (int32_t)roundf(value × 1000000)`，打包为 int32 Big Endian 发送。
 - PC 侧解码：`value = raw / 1000000.0`。
-- tf 单位为秒。
+- ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 4 | int32 | kp（÷1000000 解码） |
 | 4 | 4 | int32 | ki（÷1000000 解码） |
 | 8 | 4 | int32 | kd（÷1000000 解码） |
-| 12 | 4 | int32 | tf，单位秒（÷1000000 解码） |
-| **DATA_LEN** | 16 |  |  |
+| 12 | 4 | int32 | ramp，output_ramp（÷1000000 解码） |
+| 16 | 4 | int32 | tf，单位秒（÷1000000 解码） |
+| **DATA_LEN** | 20 |  |  |
 
-### CMD 0x70 - Save Tune Params Result
+### CMD 0x70 - Save PID Params Result
 Direction: MCU -> PC
-Description: 响应 CMD 0x09，返回 TUNE 参数写入 FLASH 的结果。
+Description: 响应 CMD 0x09，返回 PID 参数写入 FLASH 的结果。
 Frequence: 被动响应（仅在收到 CMD 0x09 后发送，不主动上报）
 Note:
 - `status = 0x00` 表示保存成功。
