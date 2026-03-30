@@ -7,7 +7,7 @@ from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
-    build_save_current_pid_params_to_flash,
+    build_save_current_tune_params_to_flash,
     build_query_current_loop_params,
     build_query_motor_limits,
     build_query_speed_loop_params,
@@ -31,10 +31,11 @@ TUNE_PARAM_STATUS_APPLYING = "正在应用参数并读回校验"
 TUNE_PARAM_STATUS_SYNCED = "参数已同步"
 TUNE_PARAM_STATUS_APPLY_TIMEOUT = "应用参数后读回超时"
 TUNE_PARAM_STATUS_READ_TIMEOUT = "读取参数超时"
-TUNE_PARAM_STATUS_SAVING = "正在保存 PID 参数到 FLASH"
-TUNE_PARAM_STATUS_SAVE_SUCCESS = "PID 参数已保存到 FLASH"
-TUNE_PARAM_STATUS_SAVE_TIMEOUT = "保存 PID 参数超时"
-TUNE_PARAM_STATUS_SAVE_FAILED = "保存 PID 参数失败"
+TUNE_PARAM_STATUS_SAVE_REQUIRES_SYNC = "请先读取并确认当前 TUNE 参数后再保存"
+TUNE_PARAM_STATUS_SAVING = "正在保存当前 TUNE 参数到 FLASH"
+TUNE_PARAM_STATUS_SAVE_SUCCESS = "当前 TUNE 参数已保存到 FLASH"
+TUNE_PARAM_STATUS_SAVE_TIMEOUT = "保存当前 TUNE 参数超时"
+TUNE_PARAM_STATUS_SAVE_FAILED = "保存当前 TUNE 参数失败"
 
 
 def _default_control_params() -> dict[str, dict[str, float]]:
@@ -160,7 +161,7 @@ class BackendFacade(QObject):
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
-        self._dispatcher.savePidParamsResultUpdated.connect(self._on_save_pid_params_result_updated)
+        self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
         self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
@@ -347,24 +348,25 @@ class BackendFacade(QObject):
         self._start_tune_param_refresh(post_write_readback=True)
 
     @Slot()
-    def saveCurrentControlParamsToFlash(self) -> None:
-        """触发 MCU 将当前运行中的 PID 参数写入 FLASH。"""
+    def saveCurrentTuneParamsToFlash(self) -> None:
+        """触发 MCU 将当前运行中的 TUNE 参数写入 FLASH。"""
         if not self._serial.isConnected:
-            self._set_control_params_last_status("串口未连接，无法保存 PID 参数到 FLASH")
+            self._set_control_params_last_status("串口未连接，无法保存当前 TUNE 参数到 FLASH")
             return
         if self._control_params_busy:
             self._set_control_params_last_status("参数同步中，请稍后再试")
             return
         if not self._control_params_available:
-            self._set_control_params_last_status("尚未读取有效参数，无法保存 PID 参数到 FLASH")
+            # 协议允许直接保存 MCU 当前运行参数，但交互上要求先读回确认一次，避免误存未知运行态
+            self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVE_REQUIRES_SYNC)
             return
 
-        # 保存动作不依赖 UI 草稿，只持久化 MCU 当前已经生效的 PID 运行参数
+        # 保存动作不依赖 UI 草稿，只持久化 MCU 当前已经生效的全部 TUNE 运行参数
         self._save_to_flash_pending = True
         self._set_control_params_busy(True)
         self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVING)
         self._tune_param_timeout_timer.setInterval(TUNE_PARAM_SAVE_TIMEOUT_MS)
-        self._serial.sendData(build_save_current_pid_params_to_flash())
+        self._serial.sendData(build_save_current_tune_params_to_flash())
         self._tune_param_timeout_timer.start()
 
     def _send_motor_cmd(self) -> None:
@@ -609,8 +611,8 @@ class BackendFacade(QObject):
         self._finish_param_loop_response("motorLimits")
 
     @Slot(int)
-    def _on_save_pid_params_result_updated(self, status: int) -> None:
-        """处理 MCU 返回的 PID 参数保存结果。"""
+    def _on_save_tune_params_result_updated(self, status: int) -> None:
+        """处理 MCU 返回的当前 TUNE 参数保存结果。"""
         if not self._save_to_flash_pending:
             return
 

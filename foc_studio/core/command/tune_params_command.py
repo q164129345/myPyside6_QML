@@ -1,7 +1,7 @@
 """
-Command 层：PID 参数命令构造。
+Command 层：TUNE 参数命令构造。
 职责：
-    - 定义速度环 / 电流环 PID 参数读写与保存命令字
+    - 定义速度环 / 电流环及电机限幅参数的读写与保存命令字
     - 将 QML / Backend 的工程量参数编码成协议帧
 
 约束（Layer Contracts）：
@@ -19,7 +19,7 @@ CMD_QUERY_SPEED_LOOP_PARAMS: int = 0x05
 CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
-CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH: int = 0x09
+CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH: int = 0x09
 CMD_QUERY_MOTOR_LIMITS: int = 0x0B
 CMD_SET_MOTOR_LIMITS: int = 0x0C
 
@@ -105,6 +105,7 @@ def build_set_motor_limits(voltage_limit: float, current_limit: float) -> bytes:
     return pack_frame(CMD_SET_MOTOR_LIMITS, payload)
 
 
-def build_save_current_pid_params_to_flash() -> bytes:
-    """构造将当前已生效 PID 参数写入 FLASH 的命令帧。"""
-    return pack_frame(CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH)
+def build_save_current_tune_params_to_flash() -> bytes:
+    """构造将当前已生效 TUNE 参数写入 FLASH 的命令帧。"""
+    return pack_frame(CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH)
+

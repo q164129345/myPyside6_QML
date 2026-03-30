@@ -124,7 +124,7 @@ Rectangle {
         var backendReady = paramsInfo.exists || availableInfo.exists || busyInfo.exists || statusInfo.exists
                            || hasBackendMethod("queryControlParams")
                            || hasBackendMethod("applyControlParams")
-                           || hasBackendMethod("saveCurrentControlParamsToFlash")
+                           || hasBackendMethod("saveCurrentTuneParamsToFlash")
 
         demoMode = !backendReady
         currentControlParams = normalizeParams(paramsInfo.exists ? paramsInfo.value : fallbackControlParams)
@@ -294,23 +294,27 @@ Rectangle {
 
     // 触发一次参数保存；保存来源始终是 MCU 当前运行参数，而不是编辑框草稿
     function triggerSave() {
-        if (!isSerialConnected || controlParamsBusy || !controlParamsAvailable) {
+        if (!isSerialConnected || controlParamsBusy) {
+            return
+        }
+        if (!controlParamsAvailable) {
+            controlParamsLastStatus = "请先读取并确认当前 TUNE 参数后再保存"
             return
         }
 
-        if (hasBackendMethod("saveCurrentControlParamsToFlash")) {
-            controlParamsLastStatus = "正在保存 PID 参数到 FLASH..."
+        if (hasBackendMethod("saveCurrentTuneParamsToFlash")) {
+            controlParamsLastStatus = "正在保存当前 TUNE 参数到 FLASH..."
             controlParamsBusy = true
             try {
-                backend.saveCurrentControlParamsToFlash()
+                backend.saveCurrentTuneParamsToFlash()
             } catch (error) {
                 controlParamsBusy = false
-                controlParamsLastStatus = "调用 saveCurrentControlParamsToFlash() 失败"
+                controlParamsLastStatus = "调用 saveCurrentTuneParamsToFlash() 失败"
             }
             return
         }
 
-        controlParamsLastStatus = "UI 演示模式：未执行实际 PID 参数 FLASH 保存"
+        controlParamsLastStatus = "UI 演示模式：未执行实际 TUNE 参数 FLASH 保存"
     }
 
     component InputField: Rectangle {
@@ -700,7 +704,7 @@ Rectangle {
                 }
 
                 ActionButton {
-                    text: "PID 参数保存"
+                    text: "TUNE 参数保存"
                     enabled: root.isSerialConnected && !root.controlParamsBusy && root.controlParamsAvailable
                     normalColor: "#16a085"
                     pressedColor: "#117864"
