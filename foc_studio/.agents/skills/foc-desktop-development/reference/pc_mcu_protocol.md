@@ -146,13 +146,13 @@ Note:
 | 16 | 4 | int32 | tf，单位秒（×1000000 编码） |
 | **DATA_LEN** | 20 |  |  |
 
-### CMD 0x09 - Save Current PID Params To Flash
+### CMD 0x09 - Save Current Tune Params To Flash
 Direction: PC -> MCU
-Description: PC 命令 MCU 将当前正在运行的 PID 参数写入 FLASH。
+Description: PC 命令 MCU 将当前正在运行的所有 TUNE 参数（速度环、电流环 PID及电机限幅等）写入 FLASH。
 Frequence: 按需
 Note:
 - 无 DATA payload。
-- 该命令保存的是 MCU 当前已经生效的 PID 参数，不是 UI 中尚未应用的草稿值。
+- 该命令保存的是 MCU 当前已经生效的所有 TUNE 参数，不是 UI 中尚未应用的草稿值。
 - MCU 完成 FLASH 保存后，应以 CMD 0x70 返回保存结果。
 
 | Offset | Size | Type | Description |
