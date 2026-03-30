@@ -1,7 +1,7 @@
 """
-Command 层：TUNE 页面控制参数命令构造。
+Command 层：PID 参数命令构造。
 职责：
-    - 定义速度环 / 电流环参数读写与保存命令字
+    - 定义速度环 / 电流环 PID 参数读写与保存命令字
     - 将 QML / Backend 的工程量参数编码成协议帧
 
 约束（Layer Contracts）：
@@ -19,7 +19,7 @@ CMD_QUERY_SPEED_LOOP_PARAMS: int = 0x05
 CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
-CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH: int = 0x09
+CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH: int = 0x09
 CMD_QUERY_MOTOR_LIMITS: int = 0x0B
 CMD_SET_MOTOR_LIMITS: int = 0x0C
 
@@ -38,13 +38,21 @@ def _encode_scaled_int32(value: float, field_name: str, scale: int) -> int:
     return raw_value
 
 
-def _build_set_loop_params(cmd: int, kp: float, ki: float, kd: float, tf: float) -> bytes:
-    """按固定顺序 kp/ki/kd/tf 构造参数设置帧。"""
+def _build_set_loop_params(
+    cmd: int,
+    kp: float,
+    ki: float,
+    kd: float,
+    ramp: float,
+    tf: float,
+) -> bytes:
+    """按固定顺序 kp/ki/kd/ramp/tf 构造 PID 参数设置帧。"""
     payload = struct.pack(
-        ">iiii",
+        ">iiiii",
         _encode_scaled_int32(kp, "kp", _PARAM_SCALE),
         _encode_scaled_int32(ki, "ki", _PARAM_SCALE),
         _encode_scaled_int32(kd, "kd", _PARAM_SCALE),
+        _encode_scaled_int32(ramp, "ramp", _PARAM_SCALE),
         _encode_scaled_int32(tf, "tf", _PARAM_SCALE),
     )
     return pack_frame(cmd, payload)
@@ -60,14 +68,26 @@ def build_query_current_loop_params() -> bytes:
     return pack_frame(CMD_QUERY_CURRENT_LOOP_PARAMS)
 
 
-def build_set_speed_loop_params(kp: float, ki: float, kd: float, tf: float) -> bytes:
-    """构造速度环参数设置帧。"""
-    return _build_set_loop_params(CMD_SET_SPEED_LOOP_PARAMS, kp, ki, kd, tf)
+def build_set_speed_loop_params(
+    kp: float,
+    ki: float,
+    kd: float,
+    ramp: float,
+    tf: float,
+) -> bytes:
+    """构造速度环 PID 参数设置帧。"""
+    return _build_set_loop_params(CMD_SET_SPEED_LOOP_PARAMS, kp, ki, kd, ramp, tf)
 
 
-def build_set_current_loop_params(kp: float, ki: float, kd: float, tf: float) -> bytes:
-    """构造电流环参数设置帧。"""
-    return _build_set_loop_params(CMD_SET_CURRENT_LOOP_PARAMS, kp, ki, kd, tf)
+def build_set_current_loop_params(
+    kp: float,
+    ki: float,
+    kd: float,
+    ramp: float,
+    tf: float,
+) -> bytes:
+    """构造电流环 PID 参数设置帧。"""
+    return _build_set_loop_params(CMD_SET_CURRENT_LOOP_PARAMS, kp, ki, kd, ramp, tf)
 
 
 def build_query_motor_limits() -> bytes:
@@ -85,6 +105,6 @@ def build_set_motor_limits(voltage_limit: float, current_limit: float) -> bytes:
     return pack_frame(CMD_SET_MOTOR_LIMITS, payload)
 
 
-def build_save_current_tune_params_to_flash() -> bytes:
-    """构造将当前所有 TUNE 参数写入 FLASH 的命令帧。"""
-    return pack_frame(CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH)
+def build_save_current_pid_params_to_flash() -> bytes:
+    """构造将当前已生效 PID 参数写入 FLASH 的命令帧。"""
+    return pack_frame(CMD_SAVE_CURRENT_PID_PARAMS_TO_FLASH)

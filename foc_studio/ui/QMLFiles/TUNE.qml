@@ -31,11 +31,12 @@ Rectangle {
     property int draftRevision: 0
     // 读取/应用流程中是否持续让编辑草稿跟随后端回读
     property bool keepDraftSyncedToBackend: true
-    // 参数行数据模型，用于生成速度环与电流环的 8 行控件
+    // 参数行数据模型，用于生成速度环与电流环的 10 行控件
     readonly property var parameterFields: [
         { "fieldKey": "kp", "label": "Kp", "unit": "" },
         { "fieldKey": "ki", "label": "Ki", "unit": "" },
         { "fieldKey": "kd", "label": "Kd", "unit": "" },
+        { "fieldKey": "ramp", "label": "Ramp", "unit": "output/s" },
         { "fieldKey": "tf", "label": "Tf", "unit": "s" }
     ]
     // 电机限幅参数行数据模型，用于生成 voltage_limit 与 current_limit 的 2 行控件
@@ -53,8 +54,8 @@ Rectangle {
     // 生成 UI 占位参数，保证在后端接口未就绪时页面可完整演示
     function createDefaultParams() {
         return {
-            "speedLoop": { "kp": 0.350, "ki": 12.000, "kd": 0.000, "tf": 0.010 },
-            "currentLoop": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "tf": 0.005 },
+            "speedLoop": { "kp": 0.350, "ki": 12.000, "kd": 0.000, "ramp": 0.000, "tf": 0.010 },
+            "currentLoop": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "ramp": 0.000, "tf": 0.005 },
             "motorLimits": { "voltage_limit": 12.000, "current_limit": 5.000 }
         }
     }
@@ -298,7 +299,7 @@ Rectangle {
         }
 
         if (hasBackendMethod("saveCurrentControlParamsToFlash")) {
-            controlParamsLastStatus = "正在保存参数到 FLASH..."
+            controlParamsLastStatus = "正在保存 PID 参数到 FLASH..."
             controlParamsBusy = true
             try {
                 backend.saveCurrentControlParamsToFlash()
@@ -309,7 +310,7 @@ Rectangle {
             return
         }
 
-        controlParamsLastStatus = "UI 演示模式：未执行实际 FLASH 保存"
+        controlParamsLastStatus = "UI 演示模式：未执行实际 PID 参数 FLASH 保存"
     }
 
     component InputField: Rectangle {
@@ -699,7 +700,7 @@ Rectangle {
                 }
 
                 ActionButton {
-                    text: "参数保存"
+                    text: "PID 参数保存"
                     enabled: root.isSerialConnected && !root.controlParamsBusy && root.controlParamsAvailable
                     normalColor: "#16a085"
                     pressedColor: "#117864"

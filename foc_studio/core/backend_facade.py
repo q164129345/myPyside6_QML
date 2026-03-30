@@ -7,7 +7,7 @@ from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
-    build_save_current_tune_params_to_flash,
+    build_save_current_pid_params_to_flash,
     build_query_current_loop_params,
     build_query_motor_limits,
     build_query_speed_loop_params,
@@ -31,17 +31,17 @@ TUNE_PARAM_STATUS_APPLYING = "正在应用参数并读回校验"
 TUNE_PARAM_STATUS_SYNCED = "参数已同步"
 TUNE_PARAM_STATUS_APPLY_TIMEOUT = "应用参数后读回超时"
 TUNE_PARAM_STATUS_READ_TIMEOUT = "读取参数超时"
-TUNE_PARAM_STATUS_SAVING = "正在保存参数到 FLASH"
-TUNE_PARAM_STATUS_SAVE_SUCCESS = "参数已保存到 FLASH"
-TUNE_PARAM_STATUS_SAVE_TIMEOUT = "保存参数超时"
-TUNE_PARAM_STATUS_SAVE_FAILED = "保存参数失败"
+TUNE_PARAM_STATUS_SAVING = "正在保存 PID 参数到 FLASH"
+TUNE_PARAM_STATUS_SAVE_SUCCESS = "PID 参数已保存到 FLASH"
+TUNE_PARAM_STATUS_SAVE_TIMEOUT = "保存 PID 参数超时"
+TUNE_PARAM_STATUS_SAVE_FAILED = "保存 PID 参数失败"
 
 
 def _default_control_params() -> dict[str, dict[str, float]]:
-    """创建默认的 TUNE 参数缓存对象。"""
+    """创建默认的 PID 参数缓存对象。"""
     return {
-        "speedLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "tf": 0.0},
-        "currentLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "tf": 0.0},
+        "speedLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
+        "currentLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
         "motorLimits": {"voltage_limit": 0.0, "current_limit": 0.0},
     }
 
@@ -160,7 +160,7 @@ class BackendFacade(QObject):
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
-        self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
+        self._dispatcher.savePidParamsResultUpdated.connect(self._on_save_pid_params_result_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
         self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
@@ -348,23 +348,23 @@ class BackendFacade(QObject):
 
     @Slot()
     def saveCurrentControlParamsToFlash(self) -> None:
-        """触发 MCU 将当前运行中的所有 TUNE 参数写入 FLASH。"""
+        """触发 MCU 将当前运行中的 PID 参数写入 FLASH。"""
         if not self._serial.isConnected:
-            self._set_control_params_last_status("串口未连接，无法保存参数到 FLASH")
+            self._set_control_params_last_status("串口未连接，无法保存 PID 参数到 FLASH")
             return
         if self._control_params_busy:
             self._set_control_params_last_status("参数同步中，请稍后再试")
             return
         if not self._control_params_available:
-            self._set_control_params_last_status("尚未读取有效参数，无法保存到 FLASH")
+            self._set_control_params_last_status("尚未读取有效参数，无法保存 PID 参数到 FLASH")
             return
 
-        # 保存动作不依赖 UI 草稿，只持久化 MCU 当前已经生效的运行参数
+        # 保存动作不依赖 UI 草稿，只持久化 MCU 当前已经生效的 PID 运行参数
         self._save_to_flash_pending = True
         self._set_control_params_busy(True)
         self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVING)
         self._tune_param_timeout_timer.setInterval(TUNE_PARAM_SAVE_TIMEOUT_MS)
-        self._serial.sendData(build_save_current_tune_params_to_flash())
+        self._serial.sendData(build_save_current_pid_params_to_flash())
         self._tune_param_timeout_timer.start()
 
     def _send_motor_cmd(self) -> None:
@@ -408,13 +408,18 @@ class BackendFacade(QObject):
         self._tune_param_timeout_timer.setInterval(TUNE_PARAM_READ_TIMEOUT_MS)
         self._tune_param_timeout_timer.start()
 
-    def _extract_loop_params(self, params: dict[str, Any], loop_key: str) -> tuple[float, float, float, float]:
-        """从 QML 传入的聚合参数中提取单个环路的四个工程量。"""
+    def _extract_loop_params(
+        self,
+        params: dict[str, Any],
+        loop_key: str,
+    ) -> tuple[float, float, float, float, float]:
+        """从 QML 传入的聚合参数中提取单个环路的五个工程量。"""
         loop_params = params[loop_key]
         return (
             float(loop_params["kp"]),
             float(loop_params["ki"]),
             float(loop_params["kd"]),
+            float(loop_params["ramp"]),
             float(loop_params["tf"]),
         )
 
@@ -426,12 +431,21 @@ class BackendFacade(QObject):
             float(motor_limits["current_limit"]),
         )
 
-    def _update_loop_params(self, loop_key: str, kp: float, ki: float, kd: float, tf: float) -> None:
-        """更新某个环路的参数缓存，并通知 QML 当前值已变化。"""
+    def _update_loop_params(
+        self,
+        loop_key: str,
+        kp: float,
+        ki: float,
+        kd: float,
+        ramp: float,
+        tf: float,
+    ) -> None:
+        """更新某个环路的 PID 参数缓存，并通知 QML 当前值已变化。"""
         self._control_params[loop_key] = {
             "kp": kp,
             "ki": ki,
             "kd": kd,
+            "ramp": ramp,
             "tf": tf,
         }
         self.controlParamsChanged.emit()
@@ -562,16 +576,30 @@ class BackendFacade(QObject):
         else:
             self._stop_motor_type_query_loop()
 
-    @Slot(float, float, float, float)
-    def _on_speed_loop_params_updated(self, kp: float, ki: float, kd: float, tf: float) -> None:
+    @Slot(float, float, float, float, float)
+    def _on_speed_loop_params_updated(
+        self,
+        kp: float,
+        ki: float,
+        kd: float,
+        ramp: float,
+        tf: float,
+    ) -> None:
         """收到速度环参数回读后更新缓存，并尝试结束当前同步流程。"""
-        self._update_loop_params("speedLoop", kp, ki, kd, tf)
+        self._update_loop_params("speedLoop", kp, ki, kd, ramp, tf)
         self._finish_param_loop_response("speedLoop")
 
-    @Slot(float, float, float, float)
-    def _on_current_loop_params_updated(self, kp: float, ki: float, kd: float, tf: float) -> None:
+    @Slot(float, float, float, float, float)
+    def _on_current_loop_params_updated(
+        self,
+        kp: float,
+        ki: float,
+        kd: float,
+        ramp: float,
+        tf: float,
+    ) -> None:
         """收到电流环参数回读后更新缓存，并尝试结束当前同步流程。"""
-        self._update_loop_params("currentLoop", kp, ki, kd, tf)
+        self._update_loop_params("currentLoop", kp, ki, kd, ramp, tf)
         self._finish_param_loop_response("currentLoop")
 
     @Slot(float, float)
@@ -581,8 +609,8 @@ class BackendFacade(QObject):
         self._finish_param_loop_response("motorLimits")
 
     @Slot(int)
-    def _on_save_tune_params_result_updated(self, status: int) -> None:
-        """处理 MCU 返回的 TUNE 参数保存结果。"""
+    def _on_save_pid_params_result_updated(self, status: int) -> None:
+        """处理 MCU 返回的 PID 参数保存结果。"""
         if not self._save_to_flash_pending:
             return
 
