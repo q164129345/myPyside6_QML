@@ -151,6 +151,7 @@ Direction: PC -> MCU
 Description: PC 命令 MCU 将当前正在运行的所有 TUNE 参数（速度环、电流环 PID及电机限幅等）写入 FLASH。
 Frequence: 按需
 Note:
+- 当前Tune参数包括：速度环的PID、ramp、Tf，电流环PID、ramp、Tf，voltage_limit、current_limit。
 - 无 DATA payload。
 - 该命令保存的是 MCU 当前已经生效的所有 TUNE 参数，不是 UI 中尚未应用的草稿值。
 - MCU 完成 FLASH 保存后，应以 CMD 0x70 返回保存结果。
@@ -355,6 +356,7 @@ Direction: MCU -> PC
 Description: 响应 CMD 0x09，返回 Tune 参数写入 FLASH 的结果。
 Frequence: 被动响应（仅在收到 CMD 0x09 后发送，不主动上报）
 Note:
+- 当前Tune参数包括：速度环的PID、ramp、Tf，电流环PID、ramp、Tf，voltage_limit、current_limit。
 - `status = 0x00` 表示保存成功。
 - `status = 0x01` 表示保存失败。
 
