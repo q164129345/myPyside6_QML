@@ -152,6 +152,35 @@ ApplicationWindow {
                     }
                 }
 
+                // CHT 按钮
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: root.currentPage === "CHT" ? "#3498db" : "#34495e"
+                    radius: 5
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            text: "CHT"
+                            color: "white"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "CHT"
+                        }
+                    }
+                }
+
                 // CAN 按钮
                 Rectangle {
                     Layout.fillWidth: true
@@ -228,8 +257,9 @@ ApplicationWindow {
                 anchors.fill: parent
                 currentIndex: root.currentPage === "SYS" ? 0
                              : root.currentPage === "MOT" ? 1
-                             : root.currentPage === "CAN" ? 2
-                             : 3
+                             : root.currentPage === "CHT" ? 2
+                             : root.currentPage === "CAN" ? 3
+                             : 4
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
@@ -239,6 +269,12 @@ ApplicationWindow {
                 // MOT 页面 - 使用独立的组件
                 MOT {
                     isSerialConnected: root.isSerialConnected
+                }
+
+                // CHT 页面 - 电机控制与实时波形
+                CHT {
+                    isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "CHT"
                 }
 
                 // CAN 页面 - 使用独立的组件
