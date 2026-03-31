@@ -16,5 +16,5 @@ plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformat
 
 [nuitka]
 mode = standalone
-extra_args = --quiet --noinclude-qt-translations --static-libpython=no --mingw64 --assume-yes-for-downloads --windows-console-mode=disable
+extra_args = --quiet --noinclude-qt-translations --static-libpython=auto --mingw64 --assume-yes-for-downloads --windows-console-mode=disable
 
