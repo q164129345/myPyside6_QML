@@ -85,6 +85,7 @@ class BackendFacade(QObject):
     controlParamsAvailableChanged = Signal()
     controlParamsBusyChanged = Signal()
     controlParamsLastStatusChanged = Signal()
+    tuneSaveSucceeded = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -622,6 +623,8 @@ class BackendFacade(QObject):
         self._set_control_params_last_status(
             TUNE_PARAM_STATUS_SAVE_SUCCESS if status == 0 else TUNE_PARAM_STATUS_SAVE_FAILED
         )
+        if status == 0:
+            self.tuneSaveSucceeded.emit()
 
     def _reset_mcu_motor_type(self) -> None:
         """将下位机电机类型复位到默认值，并在有变化时通知 UI。"""

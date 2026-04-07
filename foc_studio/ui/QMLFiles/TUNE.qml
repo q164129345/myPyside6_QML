@@ -578,6 +578,57 @@ Rectangle {
         }
     }
 
+    // 参数保存成功提示弹窗
+    Rectangle {
+        id: saveSuccessToast
+        anchors.centerIn: parent
+        width: 280
+        height: 120
+        radius: 16
+        color: "#16a085"
+        visible: false
+        z: 100
+
+        // 半透明遮罩，让弹窗更突出
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            color: "transparent"
+            border.color: "#1abc9c"
+            border.width: 2
+        }
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 10
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "✓"
+                font.pixelSize: 32
+                font.bold: true
+                color: "white"
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "参数保存成功"
+                font.pixelSize: 20
+                font.bold: true
+                color: "white"
+            }
+        }
+
+        SequentialAnimation {
+            id: toastAnimation
+            running: false
+            ScriptAction { script: { saveSuccessToast.visible = true; saveSuccessToast.opacity = 1.0; saveSuccessToast.scale = 1.0 } }
+            PauseAnimation { duration: 1800 }
+            NumberAnimation { target: saveSuccessToast; property: "opacity"; to: 0.0; duration: 400 }
+            ScriptAction { script: saveSuccessToast.visible = false }
+        }
+    }
+
     ScrollView {
         id: pageScrollView
         anchors.fill: parent
@@ -751,6 +802,11 @@ Rectangle {
 
         function onControlParamsLastStatusChanged() {
             root.syncFromBackend(false)
+        }
+
+        function onTuneSaveSucceeded() {
+            toastAnimation.stop()
+            toastAnimation.start()
         }
     }
 }
