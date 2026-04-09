@@ -392,5 +392,22 @@ Note:
 | 4 | 4 | int32 | current_limit（÷1000000 解码） |
 | **DATA_LEN** | 8 |  |  |
 
+### CMD 0x73 - Log Message
+Direction: MCU → PC  
+Description: MCU 主动上传日志消息（INFO / WARN / ERROR），供上位机显示调试信息。  
+Frequence: 按需（仅在 `DEBUG_LOG_ENABLE=1` 且 `LOG_PRINT_TO_USARTX=2` 时触发）  
+Note:
+- 由 `LOG_INFO` / `LOG_WARN` / `LOG_ERROR` 宏触发，格式化后通过协议帧发送。
+- Message 字段为 ASCII 字符串，不含 `\r\n`，不含 null 终止符。
+- Message 最长 254 字节，LEN 最大 255（Level 1 字节 + Message 254 字节）。
+- Level 枚举：0 = INFO，1 = WARN，2 = ERROR。
+- PC 侧建议按 Level 用不同颜色显示。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8 | Level（0=INFO，1=WARN，2=ERROR） |
+| 1 | N | char[] | Message 字符串（ASCII，无终止符） |
+| **DATA_LEN** | 1+N |  | N = strlen(message)，最大 254 |
+
 
 ---
