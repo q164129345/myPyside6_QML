@@ -86,6 +86,7 @@ class BackendFacade(QObject):
     controlParamsBusyChanged = Signal()
     controlParamsLastStatusChanged = Signal()
     tuneSaveSucceeded = Signal()
+    logMessageReceived = Signal(int, str)              # level, message（转发自 FrameDispatcher）
 
     def __init__(self) -> None:
         super().__init__()
@@ -164,6 +165,7 @@ class BackendFacade(QObject):
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
         self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
+        self._dispatcher.logMessageReceived.connect(self.logMessageReceived)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
         self._serial_stats.rxFrameCountTotalChanged.connect(self.rxFrameCountTotalChanged)
         self._serial_stats.txBytesTotalChanged.connect(self.txBytesTotalChanged)

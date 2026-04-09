@@ -39,6 +39,7 @@ CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
 CMD_SAVE_TUNE_PARAMS_RESULT: int = 0x70
 CMD_MOTOR_LIMITS: int = 0x72
+CMD_LOG_MESSAGE: int = 0x73
 
 
 class FrameDispatcher(QObject):
@@ -58,6 +59,7 @@ class FrameDispatcher(QObject):
     currentLoopParamsUpdated = Signal(float, float, float, float, float)  # Kp, Ki, Kd, Ramp, Tf
     saveTuneParamsResultUpdated = Signal(int)          # 0=成功 1=失败
     motorLimitsUpdated = Signal(float, float)         # voltage_limit, current_limit
+    logMessageReceived = Signal(int, str)              # level(0=INFO,1=WARN,2=ERROR), message
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +77,7 @@ class FrameDispatcher(QObject):
             CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
             CMD_SAVE_TUNE_PARAMS_RESULT: self._handle_save_tune_params_result,
             CMD_MOTOR_LIMITS: self._handle_motor_limits,
+            CMD_LOG_MESSAGE: self._handle_log_message,
         }
 
     @Slot(object)
@@ -197,3 +200,11 @@ class FrameDispatcher(QObject):
             raw_voltage_limit / 1000000.0,
             raw_current_limit / 1000000.0,
         )
+
+    def _handle_log_message(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x73：日志消息，Level(1byte) + Message(ASCII)。"""
+        if frame.datalen < 1:
+            return
+        level = min(frame.data[0], 2)  # 0=INFO, 1=WARN, 2=ERROR；越界归为 ERROR
+        message = frame.data[1:].decode("ascii", errors="replace")
+        self.logMessageReceived.emit(level, message)

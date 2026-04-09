@@ -181,11 +181,11 @@ ApplicationWindow {
                     }
                 }
 
-                // CAN 按钮
+                // LOG 按钮
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
-                    color: root.currentPage === "CAN" ? "#3498db" : "#34495e"
+                    color: root.currentPage === "LOG" ? "#3498db" : "#34495e"
                     radius: 5
 
                     Column {
@@ -193,7 +193,7 @@ ApplicationWindow {
                         spacing: 5
 
                         Text {
-                            text: "CAN"
+                            text: "LOG"
                             color: "white"
                             font.pixelSize: 10
                             font.bold: true
@@ -205,7 +205,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            root.currentPage = "CAN"
+                            root.currentPage = "LOG"
                         }
                     }
                 }
@@ -258,7 +258,7 @@ ApplicationWindow {
                 currentIndex: root.currentPage === "SYS" ? 0
                              : root.currentPage === "MOT" ? 1
                              : root.currentPage === "CHT" ? 2
-                             : root.currentPage === "CAN" ? 3
+                             : root.currentPage === "LOG" ? 3
                              : 4
 
                 // SYS 页面 - 使用独立的组件
@@ -277,8 +277,8 @@ ApplicationWindow {
                     isPageActive: root.currentPage === "CHT"
                 }
 
-                // CAN 页面 - 使用独立的组件
-                CAN {
+                // LOG 页面 - 显示 MCU 上报日志
+                LOG {
                     isSerialConnected: root.isSerialConnected
                 }
 
