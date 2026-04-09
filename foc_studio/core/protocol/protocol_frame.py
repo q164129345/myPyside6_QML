@@ -235,7 +235,7 @@ def parse_frame_from_buffer(buffer: bytearray) -> ParseResult:
             return BufferParseResult(PARSE_STATUS_FRAME, frame_end, parsed)
 
         # CRC 校验失败：此 0xAA 不是有效帧头，向后移动一字节继续搜索
-        return BufferParseResult(PARSE_STATUS_CRC_ERROR, frame_end)
+        return BufferParseResult(PARSE_STATUS_CRC_ERROR, i + 1)
 
     # ── 全缓冲区搜索完毕，未找到可成功解码的帧 ──────────────────────────────
     # 保留最后一个 0xAA 及其之后的字节（可能是下一帧起始）
