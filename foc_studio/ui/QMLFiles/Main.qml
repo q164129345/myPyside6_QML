@@ -269,6 +269,7 @@ ApplicationWindow {
                 // MOT 页面 - 使用独立的组件
                 MOT {
                     isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "MOT"
                 }
 
                 // CHT 页面 - 电机控制与实时波形
@@ -280,6 +281,7 @@ ApplicationWindow {
                 // LOG 页面 - 显示 MCU 上报日志
                 LOG {
                     isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "LOG"
                 }
 
                 // TUNE 页面 - 电机参数调试

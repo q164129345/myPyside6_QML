@@ -12,9 +12,9 @@ class mySerial(QObject):
     
     dataWritten = Signal(int, bool)    # 发送后回传写入字节数与是否写入完整帧
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._serial_port = QSerialPort() # create serial port object
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._serial_port = QSerialPort(self) # create serial port object
         self._is_connected = False
         self._ports_list = [] # available ports list
         self._serial_port.readyRead.connect(self.On_Data_Ready) # 关键！当串口有数据，自动调用回调函数_on_data_ready

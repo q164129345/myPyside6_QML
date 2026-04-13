@@ -90,9 +90,10 @@ class BackendFacade(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._serial = mySerial()
-        self._processor = DataProcessor()
-        self._dispatcher = FrameDispatcher()
+        # 统一纳入 Qt 对象树，避免未来重建门面对象时出现悬挂 QObject。
+        self._serial = mySerial(self)
+        self._processor = DataProcessor(self)
+        self._dispatcher = FrameDispatcher(self)
         self._serial_stats = SerialStatisticsService(self)
 
         # 电机控制目标，用于 500ms 周期保活发送 CMD 0x01

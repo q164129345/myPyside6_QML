@@ -23,9 +23,9 @@ class DataProcessor(QObject):
     crcErrorDetected = Signal()  # CRC 校验失败时发出，用于统计接收质量
     invalidFrameDetected = Signal()  # 丢弃前导垃圾或无效帧头时发出
 
-    def __init__(self):
+    def __init__(self, parent=None):
         """初始化接收缓冲区，准备做增量解析。"""
-        super().__init__()
+        super().__init__(parent)
         self._buffer = bytearray()  # 接收缓冲区：持续累积来自串口的原始字节，直到凑齐完整帧
 
     @Slot()

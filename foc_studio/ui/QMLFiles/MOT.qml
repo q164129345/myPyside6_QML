@@ -9,6 +9,7 @@ Rectangle {
     // qmllint disable unqualified
 
     property bool isSerialConnected: false
+    property bool isPageActive: false
 
     property int currentSpeed: 0
     property real currentCurrent: 0.0
@@ -66,11 +67,30 @@ Rectangle {
         return "0x" + hexText
     }
 
+    // 页面重新激活时，从后端只读属性补齐一次性状态，避免错过非周期信号。
+    function syncCachedBackendState() {
+        if (backend === null)
+            return
+
+        root.mcuSoftwareVersion = backend.mcuSoftwareVersion
+        root.mcuMotorType = backend.mcuMotorType
+    }
+
     onIsSerialConnectedChanged: {
         if (!root.isSerialConnected) {
             root.errorCode = 0
             root.hasErrorCodeData = false
         }
+    }
+
+    onIsPageActiveChanged: {
+        if (root.isPageActive)
+            root.syncCachedBackendState()
+    }
+
+    Component.onCompleted: {
+        if (root.isPageActive)
+            root.syncCachedBackendState()
     }
 
     component InputField: Rectangle {

@@ -10,9 +10,13 @@ Rectangle {
     color: "#ecf0f1"
 
     property bool isSerialConnected: false
+    property bool isPageActive: false
     property int maxLogCount: 500
+    property int maxPendingLogCount: 200
+    property int logFlushIntervalMs: 100
     property bool infoAutoScroll: true
     property bool warnErrorAutoScroll: true
+    property var pendingLogs: []
 
     // INFO 日志数据模型
     ListModel { id: infoModel }
@@ -20,32 +24,102 @@ Rectangle {
     // WARN/ERROR 日志数据模型
     ListModel { id: warnErrorModel }
 
-    function appendLog(level, message) {
-        var now = Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
-        var prefix = level === 0 ? "[INFO]" : (level === 1 ? "[WARN]" : "[ERROR]")
-        var color = level === 0 ? "#ffffff" : (level === 1 ? "#f1c40f" : "#e74c3c")
-        var text = now + " " + prefix + " " + message
+    // 按批次写入模型，并把头部裁剪收敛成每批一次，避免达到上限后每条日志都整体搬移
+    function appendLogsToModel(targetModel, entries) {
+        if (entries.length === 0)
+            return
 
-        if (level === 0) {
-            if (infoModel.count >= maxLogCount)
-                infoModel.remove(0)
-            infoModel.append({ logText: text, logColor: color })
-            if (root.infoAutoScroll)
-                Qt.callLater(infoListView.positionViewAtEnd)
-        } else {
-            if (warnErrorModel.count >= maxLogCount)
-                warnErrorModel.remove(0)
-            warnErrorModel.append({ logText: text, logColor: color })
-            if (root.warnErrorAutoScroll)
-                Qt.callLater(warnErrorListView.positionViewAtEnd)
+        var overflowCount = targetModel.count + entries.length - root.maxLogCount
+        if (overflowCount > 0)
+            targetModel.remove(0, overflowCount)
+
+        for (var index = 0; index < entries.length; index += 1) {
+            targetModel.append(entries[index])
         }
+    }
+
+    // 先把高频日志积压到短队列，交给定时器批量刷入模型，降低主线程抖动
+    function enqueueLog(level, message) {
+        pendingLogs.push({
+            level: level,
+            message: message,
+            timestampText: Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
+        })
+
+        if (pendingLogs.length >= maxPendingLogCount) {
+            root.flushPendingLogs()
+            return
+        }
+
+        if (!logFlushTimer.running)
+            logFlushTimer.start()
+    }
+
+    // 清除模型时同步丢弃同类待刷新的日志，避免“清除”后旧队列又被补回界面。
+    function clearLogs(targetLevel) {
+        if (targetLevel === 0)
+            infoModel.clear()
+        else
+            warnErrorModel.clear()
+
+        var remainingLogs = []
+        for (var index = 0; index < pendingLogs.length; index += 1) {
+            var item = pendingLogs[index]
+            var matchesInfo = targetLevel === 0 && item.level === 0
+            var matchesWarnError = targetLevel !== 0 && item.level !== 0
+            if (!matchesInfo && !matchesWarnError)
+                remainingLogs.push(item)
+        }
+        pendingLogs = remainingLogs
+    }
+
+    // 批量刷新模型，并把自动滚动收敛成每批最多一次
+    function flushPendingLogs() {
+        if (pendingLogs.length === 0) {
+            logFlushTimer.stop()
+            return
+        }
+
+        var logsToFlush = pendingLogs
+        pendingLogs = []
+        var infoEntries = []
+        var warnErrorEntries = []
+
+        for (var index = 0; index < logsToFlush.length; index += 1) {
+            var item = logsToFlush[index]
+            var prefix = item.level === 0 ? "[INFO]" : (item.level === 1 ? "[WARN]" : "[ERROR]")
+            var color = item.level === 0 ? "#ffffff" : (item.level === 1 ? "#f1c40f" : "#e74c3c")
+            var entry = { logText: item.timestampText + " " + prefix + " " + item.message, logColor: color }
+            if (item.level === 0)
+                infoEntries.push(entry)
+            else
+                warnErrorEntries.push(entry)
+        }
+
+        appendLogsToModel(infoModel, infoEntries)
+        appendLogsToModel(warnErrorModel, warnErrorEntries)
+
+        if (root.isPageActive && root.infoAutoScroll && infoEntries.length > 0)
+            infoListView.positionViewAtEnd()
+        if (root.isPageActive && root.warnErrorAutoScroll && warnErrorEntries.length > 0)
+            warnErrorListView.positionViewAtEnd()
+
+        logFlushTimer.stop()
+    }
+
+    Timer {
+        id: logFlushTimer
+        interval: root.logFlushIntervalMs
+        repeat: true
+        running: false
+        onTriggered: root.flushPendingLogs()
     }
 
     Connections {
         target: backend
         enabled: backend !== null
         function onLogMessageReceived(level, message) {
-            root.appendLog(level, message)
+            root.enqueueLog(level, message)
         }
     }
 
@@ -102,7 +176,7 @@ Rectangle {
                         implicitWidth: 50
                         implicitHeight: 22
                         font.pixelSize: 11
-                        onClicked: infoModel.clear()
+                        onClicked: root.clearLogs(0)
                     }
                 }
 
@@ -121,6 +195,7 @@ Rectangle {
                     model: infoModel
                     clip: true
                     spacing: 1
+                    reuseItems: true
 
                     delegate: Text {
                         width: infoListView.width
@@ -191,7 +266,7 @@ Rectangle {
                         implicitWidth: 50
                         implicitHeight: 22
                         font.pixelSize: 11
-                        onClicked: warnErrorModel.clear()
+                        onClicked: root.clearLogs(1)
                     }
                 }
 
@@ -210,6 +285,7 @@ Rectangle {
                     model: warnErrorModel
                     clip: true
                     spacing: 1
+                    reuseItems: true
 
                     delegate: Text {
                         width: warnErrorListView.width

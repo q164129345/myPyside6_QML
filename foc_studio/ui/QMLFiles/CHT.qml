@@ -14,16 +14,19 @@ Rectangle {
     property bool isPageActive: false
     property int currentSpeed: 0
     property real currentCurrent: 0.0
+    property int chartRefreshIntervalMs: 50
     property int timeWindowMs: 5000
     property var speedSamples: []
     property var currentSamples: []
+    property var pendingSpeedSamples: []
+    property var pendingCurrentSamples: []
     property double latestTimestampMs: 0
     property real speedAxisMinValue: -3000.0
     property real speedAxisMaxValue: 3000.0
     property real currentAxisMinValue: 0.0
     property real currentAxisMaxValue: 0.4
 
-    // 根据最新样本时间裁剪历史点，保证页面只保留最近 5 秒窗口
+    // 根据最新样本时间裁剪历史点，保证绑定能看到数组已更新
     function trimSamples(samples, latestTimestampMs) {
         var minTimestamp = latestTimestampMs - root.timeWindowMs
         var trimmed = []
@@ -45,14 +48,57 @@ Rectangle {
         }
     }
 
-    // 接收到新遥测点后仅更新缓存；图表统一按同一时间基准重建
-    function appendSample(targetSamples, value) {
-        var timestampMs = Date.now()
-        var updatedSamples = targetSamples.slice(0)
-        updatedSamples.push({ "timestamp": timestampMs, "value": value })
+    // 将高频遥测先缓存成批，等下一次定时刷新时统一并入曲线
+    function enqueueTelemetry(isSpeedSample, value) {
+        var sample = { "timestamp": Date.now(), "value": value }
+        if (isSpeedSample)
+            root.pendingSpeedSamples.push(sample)
+        else
+            root.pendingCurrentSamples.push(sample)
 
-        root.latestTimestampMs = Math.max(root.latestTimestampMs, timestampMs)
-        return updatedSamples
+        root.scheduleFlushPendingTelemetry()
+    }
+
+    // 仅在存在新遥测时启动刷新定时器，避免图表页前台空转。
+    function scheduleFlushPendingTelemetry() {
+        if (root.isPageActive && !chartRefreshTimer.running)
+            chartRefreshTimer.start()
+    }
+
+    // 固定刷新频率读取最近一次遥测值，把高频信号收敛为可控的 UI 刷新节奏
+    function flushPendingTelemetry() {
+        if (!root.isPageActive)
+            return
+
+        var latestTimestampMs = root.latestTimestampMs
+        var hasNewSamples = false
+
+        if (root.pendingSpeedSamples.length > 0) {
+            latestTimestampMs = Math.max(
+                        latestTimestampMs,
+                        root.pendingSpeedSamples[root.pendingSpeedSamples.length - 1].timestamp)
+            root.speedSamples = root.speedSamples.concat(root.pendingSpeedSamples)
+            root.pendingSpeedSamples = []
+            hasNewSamples = true
+        }
+
+        if (root.pendingCurrentSamples.length > 0) {
+            latestTimestampMs = Math.max(
+                        latestTimestampMs,
+                        root.pendingCurrentSamples[root.pendingCurrentSamples.length - 1].timestamp)
+            root.currentSamples = root.currentSamples.concat(root.pendingCurrentSamples)
+            root.pendingCurrentSamples = []
+            hasNewSamples = true
+        }
+
+        if (!hasNewSamples) {
+            chartRefreshTimer.stop()
+            return
+        }
+
+        root.latestTimestampMs = latestTimestampMs
+        root.refreshCharts()
+        chartRefreshTimer.stop()
     }
 
     // 使用统一时间轴同步刷新两张图，避免波形时间窗口错位
@@ -185,6 +231,8 @@ Rectangle {
     function resetCharts() {
         root.speedSamples = []
         root.currentSamples = []
+        root.pendingSpeedSamples = []
+        root.pendingCurrentSamples = []
         root.latestTimestampMs = 0
         root.speedAxisMinValue = -3000.0
         root.speedAxisMaxValue = 3000.0
@@ -192,6 +240,14 @@ Rectangle {
         root.currentAxisMaxValue = 0.4
         speedSeries.clear()
         currentSeries.clear()
+    }
+
+    Timer {
+        id: chartRefreshTimer
+        interval: root.chartRefreshIntervalMs
+        repeat: true
+        running: false
+        onTriggered: root.flushPendingTelemetry()
     }
 
     onIsSerialConnectedChanged: {
@@ -204,8 +260,14 @@ Rectangle {
     }
 
     onIsPageActiveChanged: {
-        if (!root.isPageActive)
+        if (!root.isPageActive) {
+            chartRefreshTimer.stop()
             root.resetCharts()
+            return
+        }
+
+        if (root.pendingSpeedSamples.length > 0 || root.pendingCurrentSamples.length > 0)
+            root.scheduleFlushPendingTelemetry()
     }
 
     // 输入框组件：用于目标速度输入
@@ -503,14 +565,12 @@ Rectangle {
         // 后端信号驱动页面状态与曲线刷新，保持 UI 不接触协议层
         function onSpeedUpdated(rpm) {
             root.currentSpeed = rpm
-            root.speedSamples = root.appendSample(root.speedSamples, rpm)
-            root.refreshCharts()
+            root.enqueueTelemetry(true, rpm)
         }
 
         function onMotorCurrentUpdated(amps) {
             root.currentCurrent = amps
-            root.currentSamples = root.appendSample(root.currentSamples, amps)
-            root.refreshCharts()
+            root.enqueueTelemetry(false, amps)
         }
     }
 }
