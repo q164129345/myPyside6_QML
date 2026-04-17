@@ -409,5 +409,24 @@ Note:
 | 1 | N | char[] | Message 字符串（ASCII，无终止符） |
 | **DATA_LEN** | 1+N |  | N = strlen(message)，最大 254 |
 
+### CMD 0x74 - Hall Sensor State
+Direction: MCU → PC
+Description: 上报霍尔传感器三路原始信号、hall_state 及当前电气扇区，用于调试诊断。
+Frequence: 50ms/次
+Note:
+- 仅当 Motor_Type == 2（滚刷电机）时，MCU 才会发送此帧。
+- Hall A/B/C 各为 0 或 1，表示对应霍尔引脚的当前电平。
+- hall_state 编码：`hall_state = C + (B << 1) + (A << 2)`，取值范围 0~7，其中 1~6 有效，0 和 7 表示无效。
+- electric_sector 有效范围 0~5，-1 表示无效（hall_state=0 或 7 时）。
+
+| Offset | Size | Type  | Description                          |
+|--------|------|-------|--------------------------------------|
+| 0      | 1    | uint8 | Hall A（0 或 1）                     |
+| 1      | 1    | uint8 | Hall B（0 或 1）                     |
+| 2      | 1    | uint8 | Hall C（0 或 1）                     |
+| 3      | 1    | uint8 | hall_state（0~7，其中 1~6 有效，0/7 表示无效） |
+| 4      | 1    | int8  | electric_sector（0~5，-1 表示无效）  |
+| **DATA_LEN** | 5 |  |                                 |
+
 
 ---
