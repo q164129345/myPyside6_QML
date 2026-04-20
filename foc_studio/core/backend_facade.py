@@ -23,6 +23,7 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
+HALL_SUPPORTED_MOTOR_TYPE = 2
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_SAVE_TIMEOUT_MS = 3000
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
@@ -72,6 +73,8 @@ class BackendFacade(QObject):
     mcuSoftwareVersionUpdated = Signal(str)           # 下位机软件版本（main.sub.mini.fixed）
 
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~5，0=未知）
+    hallTelemetryUpdated = Signal(int, int, int, int, int)  # Hall A/B/C、hall_state、电气扇区
+    hallTelemetryChanged = Signal()
 
     txFrameCountTotalChanged = Signal()
     rxFrameCountTotalChanged = Signal()
@@ -104,6 +107,13 @@ class BackendFacade(QObject):
         self._mcu_version_text: str = DEFAULT_MCU_VERSION
         # 下位机电机类型缓存，0 表示未知
         self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
+        # HALL 页面缓存：保存最近一次有效霍尔遥测，available 表示是否收到过有效帧
+        self._hall_a: int = 0
+        self._hall_b: int = 0
+        self._hall_c: int = 0
+        self._hall_state: int = 0
+        self._electric_sector: int = -1
+        self._hall_telemetry_available: bool = False
         # TUNE 页面控制参数缓存，按速度环 / 电流环分别保存最近一次回读值
         self._control_params: dict[str, dict[str, float]] = _default_control_params()
         # TUNE 页面参数是否已完成一轮有效读回
@@ -162,6 +172,7 @@ class BackendFacade(QObject):
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
+        self._dispatcher.hallTelemetryUpdated.connect(self._on_hall_telemetry_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
         self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
@@ -200,6 +211,36 @@ class BackendFacade(QObject):
     def mcuMotorType(self) -> int:
         """QML 只读属性：下位机电机类型（0=未知）。"""
         return self._mcu_motor_type
+
+    @Property(int, notify=hallTelemetryChanged)  # type: ignore
+    def hallA(self) -> int:
+        """QML 只读属性：霍尔 A 原始电平。"""
+        return self._hall_a
+
+    @Property(int, notify=hallTelemetryChanged)  # type: ignore
+    def hallB(self) -> int:
+        """QML 只读属性：霍尔 B 原始电平。"""
+        return self._hall_b
+
+    @Property(int, notify=hallTelemetryChanged)  # type: ignore
+    def hallC(self) -> int:
+        """QML 只读属性：霍尔 C 原始电平。"""
+        return self._hall_c
+
+    @Property(int, notify=hallTelemetryChanged)  # type: ignore
+    def hallState(self) -> int:
+        """QML 只读属性：hall_state 原始值。"""
+        return self._hall_state
+
+    @Property(int, notify=hallTelemetryChanged)  # type: ignore
+    def electricSector(self) -> int:
+        """QML 只读属性：electric_sector 原始值。"""
+        return self._electric_sector
+
+    @Property(bool, notify=hallTelemetryChanged)  # type: ignore
+    def hallTelemetryAvailable(self) -> bool:
+        """QML 只读属性：是否收到过有效的 HALL 遥测。"""
+        return self._hall_telemetry_available
 
     @Property(int, notify=txFrameCountTotalChanged)  # type: ignore
     def txFrameCountTotal(self) -> int:
@@ -464,6 +505,34 @@ class BackendFacade(QObject):
         }
         self.controlParamsChanged.emit()
 
+    def _set_hall_telemetry(
+        self,
+        hall_a: int,
+        hall_b: int,
+        hall_c: int,
+        hall_state: int,
+        electric_sector: int,
+        available: bool,
+    ) -> None:
+        """更新 HALL 缓存，并在状态变化时通知 QML。"""
+        if (
+            self._hall_a == hall_a
+            and self._hall_b == hall_b
+            and self._hall_c == hall_c
+            and self._hall_state == hall_state
+            and self._electric_sector == electric_sector
+            and self._hall_telemetry_available == available
+        ):
+            return
+
+        self._hall_a = hall_a
+        self._hall_b = hall_b
+        self._hall_c = hall_c
+        self._hall_state = hall_state
+        self._electric_sector = electric_sector
+        self._hall_telemetry_available = available
+        self.hallTelemetryChanged.emit()
+
     def _finish_param_loop_response(self, loop_key: str) -> None:
         """消费某个分组的回读结果，并在三组都完成时结束 busy。"""
         if loop_key not in self._pending_param_loops:
@@ -575,12 +644,40 @@ class BackendFacade(QObject):
         valid_motor_type = motor_type if 1 <= motor_type <= 5 else DEFAULT_MOTOR_TYPE
         self._mcu_motor_type = valid_motor_type
         self.mcuMotorTypeUpdated.emit(valid_motor_type)
+        if valid_motor_type != HALL_SUPPORTED_MOTOR_TYPE:
+            self._reset_hall_telemetry()
 
         if valid_motor_type == DEFAULT_MOTOR_TYPE:
             if self._serial.isConnected:
                 self._start_motor_type_query_loop()
         else:
             self._stop_motor_type_query_loop()
+
+    @Slot(int, int, int, int, int)
+    def _on_hall_telemetry_updated(
+        self,
+        hall_a: int,
+        hall_b: int,
+        hall_c: int,
+        hall_state: int,
+        electric_sector: int,
+    ) -> None:
+        """收到 CMD 0x74 后更新 HALL 缓存，并转发给 QML 实时显示。"""
+        self._set_hall_telemetry(
+            hall_a,
+            hall_b,
+            hall_c,
+            hall_state,
+            electric_sector,
+            True,
+        )
+        self.hallTelemetryUpdated.emit(
+            hall_a,
+            hall_b,
+            hall_c,
+            hall_state,
+            electric_sector,
+        )
 
     @Slot(float, float, float, float, float)
     def _on_speed_loop_params_updated(
@@ -634,6 +731,11 @@ class BackendFacade(QObject):
         if self._mcu_motor_type != DEFAULT_MOTOR_TYPE:
             self._mcu_motor_type = DEFAULT_MOTOR_TYPE
             self.mcuMotorTypeUpdated.emit(self._mcu_motor_type)
+        self._reset_hall_telemetry()
+
+    def _reset_hall_telemetry(self) -> None:
+        """将 HALL 页面缓存复位到默认无效态。"""
+        self._set_hall_telemetry(0, 0, 0, 0, -1, False)
 
     def _reset_control_params(self) -> None:
         """断开串口时复位 TUNE 页面参数状态和缓存。"""
@@ -687,5 +789,6 @@ class BackendFacade(QObject):
             self._processor.reset()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
+            self._reset_hall_telemetry()
             self._reset_control_params()
         self.connectionStatusChanged.emit(connected, message)

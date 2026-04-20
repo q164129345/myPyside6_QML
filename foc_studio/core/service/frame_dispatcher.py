@@ -17,6 +17,8 @@
   CMD 0x6F  电流环参数          5 * int32，按 1/1000000 还原为 float
   CMD 0x70  TUNE 参数保存结果     uint8，0=成功 1=失败
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
+  CMD 0x73  日志消息            uint8 + ASCII
+  CMD 0x74  霍尔状态            4 * uint8 + 1 * int8
 """
 
 import struct
@@ -40,6 +42,7 @@ CMD_CURRENT_LOOP_PARAMS: int = 0x6F
 CMD_SAVE_TUNE_PARAMS_RESULT: int = 0x70
 CMD_MOTOR_LIMITS: int = 0x72
 CMD_LOG_MESSAGE: int = 0x73
+CMD_HALL_SENSOR_STATE: int = 0x74
 
 
 class FrameDispatcher(QObject):
@@ -60,6 +63,7 @@ class FrameDispatcher(QObject):
     saveTuneParamsResultUpdated = Signal(int)          # 0=成功 1=失败
     motorLimitsUpdated = Signal(float, float)         # voltage_limit, current_limit
     logMessageReceived = Signal(int, str)              # level(0=INFO,1=WARN,2=ERROR), message
+    hallTelemetryUpdated = Signal(int, int, int, int, int)  # Hall A/B/C, hall_state, electric_sector
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -78,6 +82,7 @@ class FrameDispatcher(QObject):
             CMD_SAVE_TUNE_PARAMS_RESULT: self._handle_save_tune_params_result,
             CMD_MOTOR_LIMITS: self._handle_motor_limits,
             CMD_LOG_MESSAGE: self._handle_log_message,
+            CMD_HALL_SENSOR_STATE: self._handle_hall_sensor_state,
         }
 
     @Slot(object)
@@ -208,3 +213,17 @@ class FrameDispatcher(QObject):
         level = min(frame.data[0], 2)  # 0=INFO, 1=WARN, 2=ERROR；越界归为 ERROR
         message = frame.data[1:].decode("ascii", errors="replace")
         self.logMessageReceived.emit(level, message)
+
+    def _handle_hall_sensor_state(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x74：霍尔三路状态、hall_state 与电气扇区。"""
+        if frame.datalen != 5:
+            return
+        # 协议固定使用 4 个 uint8 + 1 个 int8，直接透传给上层缓存与 UI。
+        hall_a, hall_b, hall_c, hall_state, electric_sector = struct.unpack_from(">BBBBb", frame.data, 0)
+        self.hallTelemetryUpdated.emit(
+            hall_a,
+            hall_b,
+            hall_c,
+            hall_state,
+            electric_sector,
+        )

@@ -152,6 +152,35 @@ ApplicationWindow {
                     }
                 }
 
+                // HALL 按钮
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: root.currentPage === "HALL" ? "#3498db" : "#34495e"
+                    radius: 5
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            text: "HALL"
+                            color: "white"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "HALL"
+                        }
+                    }
+                }
+
                 // CHT 按钮
                 Rectangle {
                     Layout.fillWidth: true
@@ -257,9 +286,10 @@ ApplicationWindow {
                 anchors.fill: parent
                 currentIndex: root.currentPage === "SYS" ? 0
                              : root.currentPage === "MOT" ? 1
-                             : root.currentPage === "CHT" ? 2
-                             : root.currentPage === "LOG" ? 3
-                             : 4
+                             : root.currentPage === "HALL" ? 2
+                             : root.currentPage === "CHT" ? 3
+                             : root.currentPage === "LOG" ? 4
+                             : 5
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
@@ -270,6 +300,12 @@ ApplicationWindow {
                 MOT {
                     isSerialConnected: root.isSerialConnected
                     isPageActive: root.currentPage === "MOT"
+                }
+
+                // HALL 页面 - 霍尔状态监控
+                HALL {
+                    isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "HALL"
                 }
 
                 // CHT 页面 - 电机控制与实时波形
