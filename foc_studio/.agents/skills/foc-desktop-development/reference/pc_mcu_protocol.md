@@ -414,7 +414,6 @@ Direction: MCU → PC
 Description: 上报霍尔传感器三路原始信号、hall_state 及当前电气扇区，用于调试诊断。
 Frequence: 50ms/次
 Note:
-- 仅当 Motor_Type == 2（滚刷电机）时，MCU 才会发送此帧。
 - Hall A/B/C 各为 0 或 1，表示对应霍尔引脚的当前电平。
 - hall_state 编码：`hall_state = C + (B << 1) + (A << 2)`，取值范围 0~7，其中 1~6 有效，0 和 7 表示无效。
 - electric_sector 有效范围 0~5，-1 表示无效（hall_state=0 或 7 时）。
