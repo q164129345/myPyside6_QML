@@ -15,7 +15,6 @@ Rectangle {
     property int currentSpeed: 0
     property real currentCurrent: 0.0
     property int chartRefreshIntervalMs: 50
-    property int axisScrollIntervalMs: 33
     property int axisRefreshIntervalMs: 250
     property int axisIdleGraceMs: 200
     property int timeWindowMs: 5000
@@ -86,7 +85,7 @@ Rectangle {
     // 使用本地时钟平滑推进横轴；若遥测短暂停止则冻结窗口，避免空白区域持续滑动
     function tickAxisWindow() {
         if (!root.isPageActive || root.chartStartTimestampMs <= 0 || root.latestTimestampMs <= 0) {
-            axisScrollTimer.stop()
+            axisFrameAnimation.stop()
             return
         }
 
@@ -94,17 +93,17 @@ Rectangle {
         var referenceTimestampMs = nowMs
         if (nowMs - root.latestTimestampMs > root.axisIdleGraceMs) {
             referenceTimestampMs = root.latestTimestampMs
-            axisScrollTimer.stop()
+            axisFrameAnimation.stop()
         }
 
         root.updateTimeAxisWindow(referenceTimestampMs)
     }
 
-    // 页面激活且已有样本时启动横轴滚动定时器，保证窗口推进节奏独立于样本批量刷新
+    // 页面激活且已有样本时启动横轴帧动画，保证窗口推进节奏与显示刷新同步
     function ensureAxisScrollRunning() {
         if (root.isPageActive && root.chartStartTimestampMs > 0 && root.latestTimestampMs > 0
-                && !axisScrollTimer.running) {
-            axisScrollTimer.start()
+                && !axisFrameAnimation.running) {
+            axisFrameAnimation.start()
         }
     }
 
@@ -197,7 +196,6 @@ Rectangle {
         root.trimSeriesHead(root.currentSamples, currentSeries, minTimestamp)
         root.speedSampleCount = root.speedSamples.length
         root.currentSampleCount = root.currentSamples.length
-        root.tickAxisWindow()
         root.ensureAxisScrollRunning()
         root.maybeRefreshAxisRanges(false)
         chartRefreshTimer.stop()
@@ -330,7 +328,7 @@ Rectangle {
         root.currentAxisMaxValue = 0.4
         speedSeries.clear()
         currentSeries.clear()
-        axisScrollTimer.stop()
+        axisFrameAnimation.stop()
     }
 
     Timer {
@@ -341,10 +339,8 @@ Rectangle {
         onTriggered: root.flushPendingTelemetry()
     }
 
-    Timer {
-        id: axisScrollTimer
-        interval: root.axisScrollIntervalMs
-        repeat: true
+    FrameAnimation {
+        id: axisFrameAnimation
         running: false
         onTriggered: root.tickAxisWindow()
     }
