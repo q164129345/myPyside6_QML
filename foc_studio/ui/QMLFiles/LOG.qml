@@ -13,7 +13,7 @@ Rectangle {
     property bool isPageActive: false
     property int maxLogCount: 500
     property int maxPendingLogCount: 200
-    property int logFlushIntervalMs: 100
+    property int logFlushIntervalMs: 150
     property bool infoAutoScroll: true
     property bool warnErrorAutoScroll: true
     property var pendingLogs: []
@@ -46,8 +46,15 @@ Rectangle {
             timestampText: Qt.formatDateTime(new Date(), "hh:mm:ss.zzz")
         })
 
-        if (pendingLogs.length >= maxPendingLogCount) {
+        if (root.isPageActive && pendingLogs.length >= maxPendingLogCount) {
             root.flushPendingLogs()
+            return
+        }
+
+        if (!root.isPageActive) {
+            var overflowCount = pendingLogs.length - maxPendingLogCount
+            if (overflowCount > 0)
+                pendingLogs.splice(0, overflowCount)
             return
         }
 
@@ -75,6 +82,11 @@ Rectangle {
 
     // 批量刷新模型，并把自动滚动收敛成每批最多一次
     function flushPendingLogs() {
+        if (!root.isPageActive) {
+            logFlushTimer.stop()
+            return
+        }
+
         if (pendingLogs.length === 0) {
             logFlushTimer.stop()
             return
@@ -110,9 +122,19 @@ Rectangle {
     Timer {
         id: logFlushTimer
         interval: root.logFlushIntervalMs
-        repeat: true
+        repeat: false
         running: false
         onTriggered: root.flushPendingLogs()
+    }
+
+    onIsPageActiveChanged: {
+        if (!root.isPageActive) {
+            logFlushTimer.stop()
+            return
+        }
+
+        if (pendingLogs.length > 0 && !logFlushTimer.running)
+            logFlushTimer.start()
     }
 
     Connections {

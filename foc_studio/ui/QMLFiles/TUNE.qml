@@ -785,6 +785,7 @@ Rectangle {
     // 预留未来 backend 的参数变更信号，接口未接入时忽略即可
     Connections {
         target: backend
+        enabled: backend !== null && root.isPageActive
         ignoreUnknownSignals: true
 
         function onControlParamsChanged() {

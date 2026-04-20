@@ -70,26 +70,7 @@ ApplicationWindow {
                         border.color: root.isSerialConnected ? "#27ae60" : "#5a6469"
                         border.width: 2
 
-                        // 呼吸灯动画 - 仅在连接时生效
-                        SequentialAnimation on opacity {
-                            running: root.isSerialConnected
-                            loops: Animation.Infinite
-                            
-                            NumberAnimation {
-                                from: 1.0
-                                to: 0.3
-                                duration: 1000
-                                easing.type: Easing.InOutQuad
-                            }
-                            NumberAnimation {
-                                from: 0.3
-                                to: 1.0
-                                duration: 1000
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        // 未连接时恢复完全不透明
+                        // 性能排查阶段先关闭全局呼吸灯动画，避免与高频图表争抢渲染预算
                         opacity: root.isSerialConnected ? 1.0 : 0.5
                     }
                 }
@@ -294,6 +275,7 @@ ApplicationWindow {
                 // SYS 页面 - 使用独立的组件
                 SYS {
                     isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "SYS"
                 }
 
                 // MOT 页面 - 使用独立的组件

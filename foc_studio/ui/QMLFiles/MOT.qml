@@ -549,7 +549,7 @@ Rectangle {
 
     Connections {
         target: backend
-        enabled: backend !== null
+        enabled: backend !== null && root.isPageActive
 
         function onSpeedUpdated(rpm)         { root.currentSpeed = rpm }
         function onMotorCurrentUpdated(amps) { root.currentCurrent = amps }

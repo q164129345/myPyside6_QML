@@ -15,16 +15,32 @@ Rectangle {
 
     // 接收串口连接状态
     property bool isSerialConnected: false
+    property bool isPageActive: false
     property var portListModel: []  // 存储串口列表
-    
-    property int txFrameCountTotal: backend ? backend.txFrameCountTotal : 0
-    property int rxFrameCountTotal: backend ? backend.rxFrameCountTotal : 0
-    property int txBytesTotal: backend ? backend.txBytesTotal : 0
-    property int rxBytesTotal: backend ? backend.rxBytesTotal : 0
-    property int txBytesPerSec: backend ? backend.txBytesPerSec : 0
-    property int rxBytesPerSec: backend ? backend.rxBytesPerSec : 0
-    property int rxCrcErrorCount: backend ? backend.rxCrcErrorCount : 0
-    property int rxInvalidFrameCount: backend ? backend.rxInvalidFrameCount : 0
+
+    property int txFrameCountTotal: 0
+    property int rxFrameCountTotal: 0
+    property int txBytesTotal: 0
+    property int rxBytesTotal: 0
+    property int txBytesPerSec: 0
+    property int rxBytesPerSec: 0
+    property int rxCrcErrorCount: 0
+    property int rxInvalidFrameCount: 0
+
+    // 页面激活时批量同步一次统计快照，避免隐藏页持续跟随后端 1 秒统计刷新
+    function syncStatisticsFromBackend() {
+        if (!backend)
+            return
+
+        root.txFrameCountTotal = backend.txFrameCountTotal
+        root.rxFrameCountTotal = backend.rxFrameCountTotal
+        root.txBytesTotal = backend.txBytesTotal
+        root.rxBytesTotal = backend.rxBytesTotal
+        root.txBytesPerSec = backend.txBytesPerSec
+        root.rxBytesPerSec = backend.rxBytesPerSec
+        root.rxCrcErrorCount = backend.rxCrcErrorCount
+        root.rxInvalidFrameCount = backend.rxInvalidFrameCount
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -257,11 +273,32 @@ Rectangle {
             }
         }
     }
+
+    Connections {
+        target: backend
+        enabled: backend !== null && root.isPageActive
+
+        function onTxFrameCountTotalChanged() { root.txFrameCountTotal = backend.txFrameCountTotal }
+        function onRxFrameCountTotalChanged() { root.rxFrameCountTotal = backend.rxFrameCountTotal }
+        function onTxBytesTotalChanged()      { root.txBytesTotal = backend.txBytesTotal }
+        function onRxBytesTotalChanged()      { root.rxBytesTotal = backend.rxBytesTotal }
+        function onTxBytesPerSecChanged()     { root.txBytesPerSec = backend.txBytesPerSec }
+        function onRxBytesPerSecChanged()     { root.rxBytesPerSec = backend.rxBytesPerSec }
+        function onRxCrcErrorCountChanged()   { root.rxCrcErrorCount = backend.rxCrcErrorCount }
+        function onRxInvalidFrameCountChanged() { root.rxInvalidFrameCount = backend.rxInvalidFrameCount }
+    }
+
+    onIsPageActiveChanged: {
+        if (root.isPageActive)
+            root.syncStatisticsFromBackend()
+    }
     
     // 初始化时获取串口列表
     Component.onCompleted: {
         if (backend) {
             root.portListModel = backend.portsList
+            if (root.isPageActive)
+                root.syncStatisticsFromBackend()
             if (backend.portsList.length > 0) {
                 portComboBox.currentIndex = -1  // 不自动选择
             }

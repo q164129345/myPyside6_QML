@@ -15,37 +15,123 @@ Rectangle {
     property int currentSpeed: 0
     property real currentCurrent: 0.0
     property int chartRefreshIntervalMs: 50
+    property int axisScrollIntervalMs: 33
+    property int axisRefreshIntervalMs: 250
+    property int axisIdleGraceMs: 200
     property int timeWindowMs: 5000
     property var speedSamples: []
     property var currentSamples: []
     property var pendingSpeedSamples: []
     property var pendingCurrentSamples: []
+    property int speedSampleCount: 0
+    property int currentSampleCount: 0
+    property double chartStartTimestampMs: 0
     property double latestTimestampMs: 0
+    property double lastAxisRefreshTimestampMs: 0
+    property real axisMinSeconds: 0.0
+    property real axisMaxSeconds: timeWindowMs / 1000.0
     property real speedAxisMinValue: -3000.0
     property real speedAxisMaxValue: 3000.0
     property real currentAxisMinValue: 0.0
     property real currentAxisMaxValue: 0.4
 
-    // 根据最新样本时间裁剪历史点，保证绑定能看到数组已更新
-    function trimSamples(samples, latestTimestampMs) {
-        var minTimestamp = latestTimestampMs - root.timeWindowMs
-        var trimmed = []
-        for (var index = 0; index < samples.length; index += 1) {
-            var sample = samples[index]
-            if (sample.timestamp >= minTimestamp)
-                trimmed.push(sample)
-        }
-        return trimmed
+    // 将会话内毫秒时间戳换算成图表 X 坐标，避免每次刷新都重写整条曲线
+    function sampleToXValue(timestampMs) {
+        return (timestampMs - root.chartStartTimestampMs) / 1000.0
     }
 
-    // 将时间戳样本转换成图表坐标，并重建对应曲线
-    function rebuildSeries(series, samples, latestTimestampMs) {
-        series.clear()
-        for (var index = 0; index < samples.length; index += 1) {
-            var sample = samples[index]
-            var xValue = (sample.timestamp - latestTimestampMs + root.timeWindowMs) / 1000.0
-            series.append(xValue, sample.value)
+    // 将待刷新的样本增量追加到曲线尾部，避免 clear + append 全量重建
+    function appendPendingSamples(samples, pendingSamples, series) {
+        if (pendingSamples.length === 0)
+            return false
+
+        for (var index = 0; index < pendingSamples.length; index += 1) {
+            var sample = pendingSamples[index]
+            sample.xValue = root.sampleToXValue(sample.timestamp)
+            samples.push(sample)
+            series.append(sample.xValue, sample.value)
         }
+        return true
+    }
+
+    // 仅从历史窗口头部移除过期点，保持图表更新复杂度与新增样本数一致
+    function trimSeriesHead(samples, series, minTimestamp) {
+        var removeCount = 0
+
+        while (removeCount < samples.length && samples[removeCount].timestamp < minTimestamp)
+            removeCount += 1
+
+        if (removeCount <= 0)
+            return
+
+        samples.splice(0, removeCount)
+        series.removeMultiple(0, removeCount)
+    }
+
+    // X 轴改为独立时钟平滑滑动，避免跟随样本批量到达而偶发跳动
+    function updateTimeAxisWindow(referenceTimestampMs) {
+        if (referenceTimestampMs <= 0 || root.chartStartTimestampMs <= 0) {
+            root.axisMinSeconds = 0.0
+            root.axisMaxSeconds = root.timeWindowMs / 1000.0
+            return
+        }
+
+        var latestSeconds = root.sampleToXValue(referenceTimestampMs)
+        var windowSeconds = root.timeWindowMs / 1000.0
+        var axisMax = Math.max(windowSeconds, latestSeconds)
+        root.axisMinSeconds = Math.max(0.0, axisMax - windowSeconds)
+        root.axisMaxSeconds = axisMax
+    }
+
+    // 使用本地时钟平滑推进横轴；若遥测短暂停止则冻结窗口，避免空白区域持续滑动
+    function tickAxisWindow() {
+        if (!root.isPageActive || root.chartStartTimestampMs <= 0 || root.latestTimestampMs <= 0) {
+            axisScrollTimer.stop()
+            return
+        }
+
+        var nowMs = Date.now()
+        var referenceTimestampMs = nowMs
+        if (nowMs - root.latestTimestampMs > root.axisIdleGraceMs) {
+            referenceTimestampMs = root.latestTimestampMs
+            axisScrollTimer.stop()
+        }
+
+        root.updateTimeAxisWindow(referenceTimestampMs)
+    }
+
+    // 页面激活且已有样本时启动横轴滚动定时器，保证窗口推进节奏独立于样本批量刷新
+    function ensureAxisScrollRunning() {
+        if (root.isPageActive && root.chartStartTimestampMs > 0 && root.latestTimestampMs > 0
+                && !axisScrollTimer.running) {
+            axisScrollTimer.start()
+        }
+    }
+
+    // 当前值超出坐标轴时立即重算，正常情况下按较低频率更新 Y 轴
+    function shouldRefreshAxis(latestValue, axisMin, axisMax) {
+        return latestValue < axisMin || latestValue > axisMax
+    }
+
+    // 将 Y 轴的全量扫描降到低频执行，减少图表布局与重绘抖动
+    function maybeRefreshAxisRanges(forceRefresh) {
+        if (root.latestTimestampMs <= 0) {
+            root.updateSpeedAxisRange([])
+            root.updateCurrentAxisRange([])
+            return
+        }
+
+        var shouldRefresh = forceRefresh
+                            || root.lastAxisRefreshTimestampMs <= 0
+                            || root.latestTimestampMs - root.lastAxisRefreshTimestampMs >= root.axisRefreshIntervalMs
+                            || root.shouldRefreshAxis(root.currentSpeed, root.speedAxisMinValue, root.speedAxisMaxValue)
+                            || root.shouldRefreshAxis(root.currentCurrent, root.currentAxisMinValue, root.currentAxisMaxValue)
+        if (!shouldRefresh)
+            return
+
+        root.updateSpeedAxisRange(root.speedSamples)
+        root.updateCurrentAxisRange(root.currentSamples)
+        root.lastAxisRefreshTimestampMs = root.latestTimestampMs
     }
 
     // 将高频遥测先缓存成批，等下一次定时刷新时统一并入曲线
@@ -77,8 +163,6 @@ Rectangle {
             latestTimestampMs = Math.max(
                         latestTimestampMs,
                         root.pendingSpeedSamples[root.pendingSpeedSamples.length - 1].timestamp)
-            root.speedSamples = root.speedSamples.concat(root.pendingSpeedSamples)
-            root.pendingSpeedSamples = []
             hasNewSamples = true
         }
 
@@ -86,8 +170,6 @@ Rectangle {
             latestTimestampMs = Math.max(
                         latestTimestampMs,
                         root.pendingCurrentSamples[root.pendingCurrentSamples.length - 1].timestamp)
-            root.currentSamples = root.currentSamples.concat(root.pendingCurrentSamples)
-            root.pendingCurrentSamples = []
             hasNewSamples = true
         }
 
@@ -96,27 +178,29 @@ Rectangle {
             return
         }
 
-        root.latestTimestampMs = latestTimestampMs
-        root.refreshCharts()
-        chartRefreshTimer.stop()
-    }
-
-    // 使用统一时间轴同步刷新两张图，避免波形时间窗口错位
-    function refreshCharts() {
-        if (!root.isPageActive || root.latestTimestampMs <= 0) {
-            speedSeries.clear()
-            currentSeries.clear()
-            root.updateSpeedAxisRange([])
-            root.updateCurrentAxisRange([])
-            return
+        if (root.chartStartTimestampMs <= 0) {
+            var earliestTimestampMs = latestTimestampMs
+            if (root.pendingSpeedSamples.length > 0)
+                earliestTimestampMs = Math.min(earliestTimestampMs, root.pendingSpeedSamples[0].timestamp)
+            if (root.pendingCurrentSamples.length > 0)
+                earliestTimestampMs = Math.min(earliestTimestampMs, root.pendingCurrentSamples[0].timestamp)
+            root.chartStartTimestampMs = earliestTimestampMs
         }
 
-        root.speedSamples = root.trimSamples(root.speedSamples, root.latestTimestampMs)
-        root.currentSamples = root.trimSamples(root.currentSamples, root.latestTimestampMs)
-        root.rebuildSeries(speedSeries, root.speedSamples, root.latestTimestampMs)
-        root.rebuildSeries(currentSeries, root.currentSamples, root.latestTimestampMs)
-        root.updateSpeedAxisRange(root.speedSamples)
-        root.updateCurrentAxisRange(root.currentSamples)
+        root.appendPendingSamples(root.speedSamples, root.pendingSpeedSamples, speedSeries)
+        root.appendPendingSamples(root.currentSamples, root.pendingCurrentSamples, currentSeries)
+        root.pendingSpeedSamples = []
+        root.pendingCurrentSamples = []
+        root.latestTimestampMs = latestTimestampMs
+        var minTimestamp = root.latestTimestampMs - root.timeWindowMs
+        root.trimSeriesHead(root.speedSamples, speedSeries, minTimestamp)
+        root.trimSeriesHead(root.currentSamples, currentSeries, minTimestamp)
+        root.speedSampleCount = root.speedSamples.length
+        root.currentSampleCount = root.currentSamples.length
+        root.tickAxisWindow()
+        root.ensureAxisScrollRunning()
+        root.maybeRefreshAxisRanges(false)
+        chartRefreshTimer.stop()
     }
 
     // 根据最近 5 秒转速样本自适应 Y 轴，兼顾低速电机与高速电机的显示分辨率
@@ -233,21 +317,36 @@ Rectangle {
         root.currentSamples = []
         root.pendingSpeedSamples = []
         root.pendingCurrentSamples = []
+        root.speedSampleCount = 0
+        root.currentSampleCount = 0
+        root.chartStartTimestampMs = 0
         root.latestTimestampMs = 0
+        root.lastAxisRefreshTimestampMs = 0
+        root.axisMinSeconds = 0.0
+        root.axisMaxSeconds = root.timeWindowMs / 1000.0
         root.speedAxisMinValue = -3000.0
         root.speedAxisMaxValue = 3000.0
         root.currentAxisMinValue = 0.0
         root.currentAxisMaxValue = 0.4
         speedSeries.clear()
         currentSeries.clear()
+        axisScrollTimer.stop()
     }
 
     Timer {
         id: chartRefreshTimer
         interval: root.chartRefreshIntervalMs
-        repeat: true
+        repeat: false
         running: false
         onTriggered: root.flushPendingTelemetry()
+    }
+
+    Timer {
+        id: axisScrollTimer
+        interval: root.axisScrollIntervalMs
+        repeat: true
+        running: false
+        onTriggered: root.tickAxisWindow()
     }
 
     onIsSerialConnectedChanged: {
@@ -266,6 +365,7 @@ Rectangle {
             return
         }
 
+        root.ensureAxisScrollRunning()
         if (root.pendingSpeedSamples.length > 0 || root.pendingCurrentSamples.length > 0)
             root.scheduleFlushPendingTelemetry()
     }
@@ -486,7 +586,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: 220
             title: "速度波形"
-            currentValueText: root.isSerialConnected && root.speedSamples.length > 0
+            currentValueText: root.isSerialConnected && root.speedSampleCount > 0
                               ? (root.currentSpeed.toString() + " RPM")
                               : "--"
 
@@ -503,8 +603,8 @@ Rectangle {
                 }
                 axisX: ValueAxis {
                     id: speedAxisX
-                    min: 0
-                    max: root.timeWindowMs / 1000.0
+                    min: root.axisMinSeconds
+                    max: root.axisMaxSeconds
                 }
                 axisY: ValueAxis {
                     id: speedAxisY
@@ -524,7 +624,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: 220
             title: "电流波形"
-            currentValueText: root.isSerialConnected && root.currentSamples.length > 0
+            currentValueText: root.isSerialConnected && root.currentSampleCount > 0
                               ? (root.currentCurrent.toFixed(3) + " A")
                               : "--"
 
@@ -541,8 +641,8 @@ Rectangle {
                 }
                 axisX: ValueAxis {
                     id: currentAxisX
-                    min: 0
-                    max: root.timeWindowMs / 1000.0
+                    min: root.axisMinSeconds
+                    max: root.axisMaxSeconds
                 }
                 axisY: ValueAxis {
                     id: currentAxisY
