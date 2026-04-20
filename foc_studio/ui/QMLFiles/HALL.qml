@@ -277,23 +277,15 @@ Rectangle {
 
     Connections {
         target: backend
-        enabled: backend !== null
-
-        function onHallTelemetryUpdated(hallA, hallB, hallC, hallState, electricSector) {
-            root.hallA = hallA
-            root.hallB = hallB
-            root.hallC = hallC
-            root.hallState = hallState
-            root.electricSector = electricSector
-            root.hallTelemetryAvailable = true
-        }
+        // 仅在页面激活时监听缓存变化；页面重新显示时再主动补齐一次缓存。
+        enabled: backend !== null && root.isPageActive
 
         function onHallTelemetryChanged() {
             root.syncCachedBackendState()
         }
 
-        function onMcuMotorTypeUpdated(typeValue) {
-            root.mcuMotorType = typeValue
+        function onMcuMotorTypeUpdated() {
+            root.syncCachedBackendState()
         }
     }
 }
