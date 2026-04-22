@@ -207,12 +207,15 @@ Note:
 Direction: MCU → PC  
 Description:  反馈电机当前的转速（单位rpm）  
 Frequence: 50ms/次
-Note: 
+Note:
+- `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
+- PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 2 | int16 | 当前转速 (rpm) |
-| **DATA_LEN** | 2 |  |  |
+| 2 | 4 | uint32_t | HAL_GetTick() (ms) |
+| **DATA_LEN** | 6 |  |  |
 
 ### CMD 0x65 - Motor Temperature
 Direction: MCU → PC  
@@ -270,24 +273,31 @@ Frequence: 50ms/次
 Note: 
 - SimpleFOC源码的FOCMotor.current变量与FOCMotor.voltage变量
 - Iq、Id、Uq、Ud都是float类型，协议是int16_t变量(-32768 ~ 32768)。变量类型转换：float变量 * 1000 -> int16变量
+- `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
+- PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
+
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 2 | int16_t | Iq电流分量 |
 | 2 | 2 | int16_t | Id电流分量 |
 | 4 | 2 | int16_t | Uq电压分量 |
 | 6 | 2 | int16_t | Ud电压分量 |
-| **DATA_LEN** | 8 |  |  |
+| 8 | 4 | uint32_t | HAL_GetTick() (ms) |
+| **DATA_LEN** | 12 |  |  |
 
 ### CMD 0x6A - Motor Current
 Direction: MCU → PC  
 Description:  电机实时的电流值(单位0.001A)  
 Frequence: 50ms/次  
-Note: 
+Note:
+- `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
+- PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
 | 0 | 2 | int16_t | 电流值 |
-| **DATA_LEN** | 2 |  |  |
+| 2 | 4 | uint32_t | HAL_GetTick() (ms) |
+| **DATA_LEN** | 6 |  |  |
 
 ### CMD 0x6C - Error Code
 Direction: MCU → PC  
@@ -417,6 +427,8 @@ Note:
 - Hall A/B/C 各为 0 或 1，表示对应霍尔引脚的当前电平。
 - hall_state 编码：`hall_state = C + (B << 1) + (A << 2)`，取值范围 0~7，其中 1~6 有效，0 和 7 表示无效。
 - electric_sector 有效范围 0~5，-1 表示无效（hall_state=0 或 7 时）。
+- `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
+- PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
 
 | Offset | Size | Type  | Description                          |
 |--------|------|-------|--------------------------------------|
@@ -425,7 +437,8 @@ Note:
 | 2      | 1    | uint8 | Hall C（0 或 1）                     |
 | 3      | 1    | uint8 | hall_state（0~7，其中 1~6 有效，0/7 表示无效） |
 | 4      | 1    | int8  | electric_sector（0~5，-1 表示无效）  |
-| **DATA_LEN** | 5 |  |                                 |
+| 5      | 4    | uint32_t | HAL_GetTick() (ms)               |
+| **DATA_LEN** | 9 |  |                                 |
 
 
 ---
