@@ -19,7 +19,6 @@ CMD_QUERY_SPEED_LOOP_PARAMS: int = 0x05
 CMD_QUERY_CURRENT_LOOP_PARAMS: int = 0x06
 CMD_SET_SPEED_LOOP_PARAMS: int = 0x07
 CMD_SET_CURRENT_LOOP_PARAMS: int = 0x08
-CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH: int = 0x09
 CMD_QUERY_MOTOR_LIMITS: int = 0x0B
 CMD_SET_MOTOR_LIMITS: int = 0x0C
 
@@ -105,7 +104,4 @@ def build_set_motor_limits(voltage_limit: float, current_limit: float) -> bytes:
     return pack_frame(CMD_SET_MOTOR_LIMITS, payload)
 
 
-def build_save_current_tune_params_to_flash() -> bytes:
-    """构造将当前已生效 TUNE 参数写入 FLASH 的命令帧。"""
-    return pack_frame(CMD_SAVE_CURRENT_TUNE_PARAMS_TO_FLASH)
 

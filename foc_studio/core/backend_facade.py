@@ -7,7 +7,6 @@ from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
-    build_save_current_tune_params_to_flash,
     build_query_current_loop_params,
     build_query_motor_limits,
     build_query_speed_loop_params,
@@ -25,18 +24,12 @@ DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
 HALL_SUPPORTED_MOTOR_TYPE = 2
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
-TUNE_PARAM_SAVE_TIMEOUT_MS = 3000
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
 TUNE_PARAM_STATUS_APPLYING = "正在应用参数并读回校验"
 TUNE_PARAM_STATUS_SYNCED = "参数已同步"
 TUNE_PARAM_STATUS_APPLY_TIMEOUT = "应用参数后读回超时"
 TUNE_PARAM_STATUS_READ_TIMEOUT = "读取参数超时"
-TUNE_PARAM_STATUS_SAVE_REQUIRES_SYNC = "请先读取并确认当前 TUNE 参数后再保存"
-TUNE_PARAM_STATUS_SAVING = "正在保存当前 TUNE 参数到 FLASH"
-TUNE_PARAM_STATUS_SAVE_SUCCESS = "当前 TUNE 参数已保存到 FLASH"
-TUNE_PARAM_STATUS_SAVE_TIMEOUT = "保存当前 TUNE 参数超时"
-TUNE_PARAM_STATUS_SAVE_FAILED = "保存当前 TUNE 参数失败"
 
 
 def _default_control_params() -> dict[str, dict[str, float]]:
@@ -88,7 +81,6 @@ class BackendFacade(QObject):
     controlParamsAvailableChanged = Signal()
     controlParamsBusyChanged = Signal()
     controlParamsLastStatusChanged = Signal()
-    tuneSaveSucceeded = Signal()
     logMessageReceived = Signal(int, str)              # level, message（转发自 FrameDispatcher）
 
     def __init__(self) -> None:
@@ -124,10 +116,8 @@ class BackendFacade(QObject):
         self._control_params_last_status: str = TUNE_PARAM_STATUS_IDLE
         # 当前一轮参数读回仍在等待的环路集合，用于判断何时完成同步
         self._pending_param_loops: set[str] = set()
-        # 标记当前读回是否属于“应用参数后读回校验”流程
+        # 标记当前读回是否属于”应用参数后读回校验”流程
         self._post_write_readback_pending: bool = False
-        # 标记当前是否处于“保存当前运行参数到 FLASH”流程
-        self._save_to_flash_pending: bool = False
 
         self._motor_cmd_timer = QTimer(self)
         self._motor_cmd_timer.setInterval(500)
@@ -175,7 +165,6 @@ class BackendFacade(QObject):
         self._dispatcher.hallTelemetryUpdated.connect(self._on_hall_telemetry_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
-        self._dispatcher.saveTuneParamsResultUpdated.connect(self._on_save_tune_params_result_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
         self._dispatcher.logMessageReceived.connect(self.logMessageReceived)
         self._serial_stats.txFrameCountTotalChanged.connect(self.txFrameCountTotalChanged)
@@ -392,28 +381,6 @@ class BackendFacade(QObject):
 
         self._start_tune_param_refresh(post_write_readback=True)
 
-    @Slot()
-    def saveCurrentTuneParamsToFlash(self) -> None:
-        """触发 MCU 将当前运行中的 TUNE 参数写入 FLASH。"""
-        if not self._serial.isConnected:
-            self._set_control_params_last_status("串口未连接，无法保存当前 TUNE 参数到 FLASH")
-            return
-        if self._control_params_busy:
-            self._set_control_params_last_status("参数同步中，请稍后再试")
-            return
-        if not self._control_params_available:
-            # 协议允许直接保存 MCU 当前运行参数，但交互上要求先读回确认一次，避免误存未知运行态
-            self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVE_REQUIRES_SYNC)
-            return
-
-        # 保存动作不依赖 UI 草稿，只持久化 MCU 当前已经生效的全部 TUNE 运行参数
-        self._save_to_flash_pending = True
-        self._set_control_params_busy(True)
-        self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVING)
-        self._tune_param_timeout_timer.setInterval(TUNE_PARAM_SAVE_TIMEOUT_MS)
-        self._serial.sendData(build_save_current_tune_params_to_flash())
-        self._tune_param_timeout_timer.start()
-
     def _send_motor_cmd(self) -> None:
         """编码并发送 CMD 0x01 电机控制帧。"""
         self._serial.sendData(build_motor_control(self._motor_enable, self._motor_target_speed))
@@ -442,7 +409,6 @@ class BackendFacade(QObject):
 
         self._pending_param_loops = {"speedLoop", "currentLoop", "motorLimits"}
         self._post_write_readback_pending = post_write_readback
-        self._save_to_flash_pending = False
         self._set_control_params_available(False)
         self._set_control_params_busy(True)
         self._set_control_params_last_status(
@@ -547,7 +513,6 @@ class BackendFacade(QObject):
         self._set_control_params_available(True)
         self._set_control_params_last_status(TUNE_PARAM_STATUS_SYNCED)
         self._post_write_readback_pending = False
-        self._save_to_flash_pending = False
 
     def _set_control_params_available(self, available: bool) -> None:
         """更新参数可用态，并在变化时通知 QML。"""
@@ -713,21 +678,6 @@ class BackendFacade(QObject):
         self._update_motor_limits(voltage_limit, current_limit)
         self._finish_param_loop_response("motorLimits")
 
-    @Slot(int)
-    def _on_save_tune_params_result_updated(self, status: int) -> None:
-        """处理 MCU 返回的当前 TUNE 参数保存结果。"""
-        if not self._save_to_flash_pending:
-            return
-
-        self._tune_param_timeout_timer.stop()
-        self._save_to_flash_pending = False
-        self._set_control_params_busy(False)
-        self._set_control_params_last_status(
-            TUNE_PARAM_STATUS_SAVE_SUCCESS if status == 0 else TUNE_PARAM_STATUS_SAVE_FAILED
-        )
-        if status == 0:
-            self.tuneSaveSucceeded.emit()
-
     def _reset_mcu_motor_type(self) -> None:
         """将下位机电机类型复位到默认值，并在有变化时通知 UI。"""
         if self._mcu_motor_type != DEFAULT_MOTOR_TYPE:
@@ -744,7 +694,6 @@ class BackendFacade(QObject):
         self._tune_param_timeout_timer.stop()
         self._pending_param_loops.clear()
         self._post_write_readback_pending = False
-        self._save_to_flash_pending = False
         self._control_params = _default_control_params()
         self.controlParamsChanged.emit()
         self._set_control_params_available(False)
@@ -753,12 +702,6 @@ class BackendFacade(QObject):
 
     def _on_tune_param_timeout(self) -> None:
         """处理 TUNE 页面参数读取或写后读回超时。"""
-        if self._save_to_flash_pending:
-            self._save_to_flash_pending = False
-            self._set_control_params_busy(False)
-            self._set_control_params_last_status(TUNE_PARAM_STATUS_SAVE_TIMEOUT)
-            return
-
         self._pending_param_loops.clear()
         self._set_control_params_busy(False)
         self._set_control_params_available(False)
