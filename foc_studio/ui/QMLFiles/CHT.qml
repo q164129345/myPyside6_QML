@@ -27,6 +27,7 @@ Rectangle {
     property double chartStartTimestampMs: 0
     property double latestTimestampMs: 0
     property double lastAxisRefreshTimestampMs: 0
+    property double _smoothAxisMs: 0.0
     property real axisMinSeconds: 0.0
     property real axisMaxSeconds: timeWindowMs / 1000.0
     property real speedAxisMinValue: -3000.0
@@ -82,21 +83,32 @@ Rectangle {
         root.axisMaxSeconds = axisMax
     }
 
-    // 使用本地时钟平滑推进横轴；若遥测短暂停止则冻结窗口，避免空白区域持续滑动
+    // 使用帧时间（frameTime）平滑推进横轴，避免 Date.now() 在 Windows 上
+    // 约 15ms 步进精度导致的轴标签跳动；若遥测停止则冻结窗口。
     function tickAxisWindow() {
         if (!root.isPageActive || root.chartStartTimestampMs <= 0 || root.latestTimestampMs <= 0) {
+            root._smoothAxisMs = 0.0
             axisFrameAnimation.stop()
             return
         }
 
         var nowMs = Date.now()
-        var referenceTimestampMs = nowMs
         if (nowMs - root.latestTimestampMs > root.axisIdleGraceMs) {
-            referenceTimestampMs = root.latestTimestampMs
+            root.updateTimeAxisWindow(root.latestTimestampMs)
+            root._smoothAxisMs = 0.0
             axisFrameAnimation.stop()
+            return
         }
 
-        root.updateTimeAxisWindow(referenceTimestampMs)
+        // 首次启动或动画重启后重新锚定；过于滞后时也重新锚定（不向后跳）
+        if (root._smoothAxisMs <= 0 || root._smoothAxisMs < root.latestTimestampMs - 1000)
+            root._smoothAxisMs = root.latestTimestampMs
+
+        // frameTime 由 vsync 驱动，无 Date.now() 的 15ms 步进抖动
+        // 限制单帧最大步进（防止动画重启后首帧 frameTime 过大导致的前跳）
+        root._smoothAxisMs += Math.min(axisFrameAnimation.frameTime * 1000.0, 50.0)
+
+        root.updateTimeAxisWindow(root._smoothAxisMs)
     }
 
     // 页面激活且已有样本时启动横轴帧动画，保证窗口推进节奏与显示刷新同步
@@ -134,8 +146,8 @@ Rectangle {
     }
 
     // 将高频遥测先缓存成批，等下一次定时刷新时统一并入曲线
-    function enqueueTelemetry(isSpeedSample, value) {
-        var sample = { "timestamp": Date.now(), "value": value }
+    function enqueueTelemetry(isSpeedSample, value, timestampMs) {
+        var sample = { "timestamp": timestampMs, "value": value }
         if (isSpeedSample)
             root.pendingSpeedSamples.push(sample)
         else
@@ -320,6 +332,7 @@ Rectangle {
         root.chartStartTimestampMs = 0
         root.latestTimestampMs = 0
         root.lastAxisRefreshTimestampMs = 0
+        root._smoothAxisMs = 0.0
         root.axisMinSeconds = 0.0
         root.axisMaxSeconds = root.timeWindowMs / 1000.0
         root.speedAxisMinValue = -3000.0
@@ -659,14 +672,14 @@ Rectangle {
         enabled: backend !== null && root.isPageActive
 
         // 后端信号驱动页面状态与曲线刷新，保持 UI 不接触协议层
-        function onSpeedUpdated(rpm) {
+        function onSpeedUpdated(rpm, timestampMs) {
             root.currentSpeed = rpm
-            root.enqueueTelemetry(true, rpm)
+            root.enqueueTelemetry(true, rpm, timestampMs)
         }
 
-        function onMotorCurrentUpdated(amps) {
+        function onMotorCurrentUpdated(amps, timestampMs) {
             root.currentCurrent = amps
-            root.enqueueTelemetry(false, amps)
+            root.enqueueTelemetry(false, amps, timestampMs)
         }
     }
 }

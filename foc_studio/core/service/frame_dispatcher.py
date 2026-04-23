@@ -4,13 +4,13 @@
   - 根据 CMD 路由到对应解码方法
   - 将 payload 解码为业务语义信号
 协议支持（MCU -> PC）：
-  CMD 0x64  转速反馈            int16, rpm
+  CMD 0x64  转速反馈            int16 rpm + uint32 tick_ms
   CMD 0x65  电机温度            int16, 单位 0.1℃
   CMD 0x66  MOS 温度            int16, 单位 0.1℃
   CMD 0x67  电机使能状态        uint8
   CMD 0x68  软件版本响应         4 * uint8 (main/sub/mini/fixed)
-  CMD 0x69  Iq/Id/Uq/Ud         4 * int16，按 1/1000 还原为 float
-  CMD 0x6A  电机电流            int16, 单位 0.001A
+  CMD 0x69  Iq/Id/Uq/Ud         4 * int16 + uint32 tick_ms
+  CMD 0x6A  电机电流            int16 + uint32 tick_ms
   CMD 0x6C  错误码              uint16
   CMD 0x6D  电机类型            uint8
   CMD 0x6E  速度环参数          5 * int32，按 1/1000000 还原为 float
@@ -18,10 +18,11 @@
   CMD 0x70  TUNE 参数保存结果     uint8，0=成功 1=失败
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
   CMD 0x73  日志消息            uint8 + ASCII
-  CMD 0x74  霍尔状态            4 * uint8 + 1 * int8
+  CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
 """
 
 import struct
+import time
 
 from PySide6.QtCore import QObject, Signal, Slot
 
@@ -48,25 +49,26 @@ CMD_HALL_SENSOR_STATE: int = 0x74
 class FrameDispatcher(QObject):
     """将协议帧解码为 Qt 业务信号。"""
 
-    speedUpdated = Signal(int)                         # 当前转速 rpm
-    motorTempUpdated = Signal(float)                  # 电机温度 ℃
-    mosTempUpdated = Signal(float)                    # MOS 温度 ℃
-    enableStateUpdated = Signal(int)                  # 使能状态 0/1
-    mcuSoftwareVersionUpdated = Signal(int, int, int, int)  # main, sub, mini, fixed
-    errorCodeUpdated = Signal(int)                    # 错误码
-    dqComponentsUpdated = Signal(float, float, float, float)  # Iq, Id, Uq, Ud
-    motorCurrentUpdated = Signal(float)               # 电机电流 A
+    speedUpdated = Signal(int, float)                         # 当前转速 rpm, pc_timestamp_ms
+    motorTempUpdated = Signal(float)                          # 电机温度 ℃
+    mosTempUpdated = Signal(float)                            # MOS 温度 ℃
+    enableStateUpdated = Signal(int)                          # 使能状态 0/1
+    mcuSoftwareVersionUpdated = Signal(int, int, int, int)   # main, sub, mini, fixed
+    errorCodeUpdated = Signal(int)                            # 错误码
+    dqComponentsUpdated = Signal(float, float, float, float, float)  # Iq, Id, Uq, Ud, pc_ts
+    motorCurrentUpdated = Signal(float, float)                # 电机电流 A, pc_timestamp_ms
 
-    mcuMotorTypeUpdated = Signal(int)                 # 电机类型 0~255
+    mcuMotorTypeUpdated = Signal(int)                         # 电机类型 0~255
     speedLoopParamsUpdated = Signal(float, float, float, float, float)    # Kp, Ki, Kd, Ramp, Tf
     currentLoopParamsUpdated = Signal(float, float, float, float, float)  # Kp, Ki, Kd, Ramp, Tf
-    saveTuneParamsResultUpdated = Signal(int)          # 0=成功 1=失败
-    motorLimitsUpdated = Signal(float, float)         # voltage_limit, current_limit
-    logMessageReceived = Signal(int, str)              # level(0=INFO,1=WARN,2=ERROR), message
-    hallTelemetryUpdated = Signal(int, int, int, int, int)  # Hall A/B/C, hall_state, electric_sector
+    saveTuneParamsResultUpdated = Signal(int)                 # 0=成功 1=失败
+    motorLimitsUpdated = Signal(float, float)                 # voltage_limit, current_limit
+    logMessageReceived = Signal(int, str)                     # level(0=INFO,1=WARN,2=ERROR), message
+    hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C, hall_state, sector, pc_ts
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._pc_mcu_offset_ms: float | None = None
         self._handlers = {
             CMD_SPEED_FEEDBACK: self._handle_speed_feedback,
             CMD_MOTOR_TEMPERATURE: self._handle_motor_temperature,
@@ -85,6 +87,16 @@ class FrameDispatcher(QObject):
             CMD_HALL_SENSOR_STATE: self._handle_hall_sensor_state,
         }
 
+    def reset_clock_sync(self) -> None:
+        """串口断开时调用，重置 PC-MCU 时钟偏移，下次连接后重新校准。"""
+        self._pc_mcu_offset_ms = None
+
+    def _sync_and_get_pc_ts(self, tick_ms: int) -> float:
+        """首帧计算 pc_mcu_offset，后续帧用偏移还原采集时刻。"""
+        if self._pc_mcu_offset_ms is None:
+            self._pc_mcu_offset_ms = time.time() * 1000.0 - tick_ms
+        return tick_ms + self._pc_mcu_offset_ms
+
     @Slot(object)
     def dispatch(self, frame: ParsedFrame) -> None:
         """按命令字分发帧；未知命令静默忽略。"""
@@ -93,11 +105,11 @@ class FrameDispatcher(QObject):
             handler(frame)
 
     def _handle_speed_feedback(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x64：当前转速。"""
-        if frame.datalen != 2:
+        """解码 CMD 0x64：当前转速 + MCU 采集时刻。"""
+        if frame.datalen != 6:
             return
-        (speed,) = struct.unpack_from(">h", frame.data, 0)
-        self.speedUpdated.emit(speed)
+        speed, tick_ms = struct.unpack_from(">hI", frame.data, 0)
+        self.speedUpdated.emit(speed, self._sync_and_get_pc_ts(tick_ms))
 
     def _handle_motor_temperature(self, frame: ParsedFrame) -> None:
         """解码 CMD 0x65：电机温度，原始单位 0.1℃。"""
@@ -138,23 +150,24 @@ class FrameDispatcher(QObject):
         self.errorCodeUpdated.emit(code)
 
     def _handle_dq_components(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x69：Iq/Id/Uq/Ud，按 1/1000 转换为工程量。"""
-        if frame.datalen != 8:
+        """解码 CMD 0x69：Iq/Id/Uq/Ud + MCU 采集时刻。"""
+        if frame.datalen != 12:
             return
-        raw_iq, raw_id, raw_uq, raw_ud = struct.unpack_from(">hhhh", frame.data, 0)
+        raw_iq, raw_id, raw_uq, raw_ud, tick_ms = struct.unpack_from(">hhhhI", frame.data, 0)
         self.dqComponentsUpdated.emit(
             raw_iq / 1000.0,
             raw_id / 1000.0,
             raw_uq / 1000.0,
             raw_ud / 1000.0,
+            self._sync_and_get_pc_ts(tick_ms),
         )
 
     def _handle_motor_current(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x6A：电机电流，原始单位 0.001A。"""
-        if frame.datalen != 2:
+        """解码 CMD 0x6A：电机电流 + MCU 采集时刻。"""
+        if frame.datalen != 6:
             return
-        (raw,) = struct.unpack_from(">h", frame.data, 0)
-        self.motorCurrentUpdated.emit(raw / 1000.0)
+        raw, tick_ms = struct.unpack_from(">hI", frame.data, 0)
+        self.motorCurrentUpdated.emit(raw / 1000.0, self._sync_and_get_pc_ts(tick_ms))
 
     def _handle_motor_type(self, frame: ParsedFrame) -> None:
         """解码 CMD 0x6D：电机类型。"""
@@ -215,15 +228,16 @@ class FrameDispatcher(QObject):
         self.logMessageReceived.emit(level, message)
 
     def _handle_hall_sensor_state(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x74：霍尔三路状态、hall_state 与电气扇区。"""
-        if frame.datalen != 5:
+        """解码 CMD 0x74：霍尔三路状态、hall_state、电气扇区 + MCU 采集时刻。"""
+        if frame.datalen != 9:
             return
-        # 协议固定使用 4 个 uint8 + 1 个 int8，直接透传给上层缓存与 UI。
-        hall_a, hall_b, hall_c, hall_state, electric_sector = struct.unpack_from(">BBBBb", frame.data, 0)
+        hall_a, hall_b, hall_c, hall_state, electric_sector, tick_ms = \
+            struct.unpack_from(">BBBBbI", frame.data, 0)
         self.hallTelemetryUpdated.emit(
             hall_a,
             hall_b,
             hall_c,
             hall_state,
             electric_sector,
+            self._sync_and_get_pc_ts(tick_ms),
         )

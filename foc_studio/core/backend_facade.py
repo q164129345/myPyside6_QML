@@ -63,17 +63,17 @@ class BackendFacade(QObject):
     portsListChanged = Signal(list)
 
     # 转发来自 FrameDispatcher 的遥测信号
-    speedUpdated = Signal(int)                         # 当前转速 rpm
-    motorTempUpdated = Signal(float)                  # 电机温度 ℃
-    mosTempUpdated = Signal(float)                    # MOS 温度 ℃
-    enableStateUpdated = Signal(int)                  # 使能状态 0/1
-    errorCodeUpdated = Signal(int)                    # 错误码
-    dqComponentsUpdated = Signal(float, float, float, float)  # Iq, Id, Uq, Ud
-    motorCurrentUpdated = Signal(float)               # 电机电流 A
+    speedUpdated = Signal(int, float)                         # 当前转速 rpm, pc_timestamp_ms
+    motorTempUpdated = Signal(float)                          # 电机温度 ℃
+    mosTempUpdated = Signal(float)                            # MOS 温度 ℃
+    enableStateUpdated = Signal(int)                          # 使能状态 0/1
+    errorCodeUpdated = Signal(int)                            # 错误码
+    dqComponentsUpdated = Signal(float, float, float, float, float)  # Iq, Id, Uq, Ud, pc_ts
+    motorCurrentUpdated = Signal(float, float)                # 电机电流 A, pc_timestamp_ms
     mcuSoftwareVersionUpdated = Signal(str)           # 下位机软件版本（main.sub.mini.fixed）
 
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~5，0=未知）
-    hallTelemetryUpdated = Signal(int, int, int, int, int)  # Hall A/B/C、hall_state、电气扇区
+    hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C、hall_state、电气扇区、pc_ts
     hallTelemetryChanged = Signal()
 
     txFrameCountTotalChanged = Signal()
@@ -661,6 +661,7 @@ class BackendFacade(QObject):
         hall_c: int,
         hall_state: int,
         electric_sector: int,
+        pc_timestamp_ms: float,
     ) -> None:
         """收到 CMD 0x74 后更新 HALL 缓存，并转发给 QML 实时显示。"""
         self._set_hall_telemetry(
@@ -677,6 +678,7 @@ class BackendFacade(QObject):
             hall_c,
             hall_state,
             electric_sector,
+            pc_timestamp_ms,
         )
 
     @Slot(float, float, float, float, float)
@@ -787,6 +789,7 @@ class BackendFacade(QObject):
             self._stop_motor_type_query_loop()
             # 断开时同步清空解析缓冲，避免残留字节带到下一次连接
             self._processor.reset()
+            self._dispatcher.reset_clock_sync()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
             self._reset_hall_telemetry()
