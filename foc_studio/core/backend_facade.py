@@ -22,7 +22,7 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
-HALL_SUPPORTED_MOTOR_TYPE = 2
+HALL_SUPPORTED_MOTOR_TYPES: frozenset[int] = frozenset({2, 3, 5})
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
@@ -609,7 +609,7 @@ class BackendFacade(QObject):
         valid_motor_type = motor_type if 1 <= motor_type <= 5 else DEFAULT_MOTOR_TYPE
         self._mcu_motor_type = valid_motor_type
         self.mcuMotorTypeUpdated.emit(valid_motor_type)
-        if valid_motor_type != HALL_SUPPORTED_MOTOR_TYPE:
+        if valid_motor_type not in HALL_SUPPORTED_MOTOR_TYPES:
             self._reset_hall_telemetry()
 
         if valid_motor_type == DEFAULT_MOTOR_TYPE:
@@ -618,7 +618,7 @@ class BackendFacade(QObject):
         else:
             self._stop_motor_type_query_loop()
 
-    @Slot(int, int, int, int, int)
+    @Slot(int, int, int, int, int, float)
     def _on_hall_telemetry_updated(
         self,
         hall_a: int,

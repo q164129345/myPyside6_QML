@@ -17,7 +17,6 @@ Rectangle {
     property int hallState: 0
     property int electricSector: -1
     property bool hallTelemetryAvailable: false
-    property int mcuMotorType: 0
 
     function syncCachedBackendState() {
         if (backend === null)
@@ -29,7 +28,6 @@ Rectangle {
         root.hallState = backend.hallState
         root.electricSector = backend.electricSector
         root.hallTelemetryAvailable = backend.hallTelemetryAvailable
-        root.mcuMotorType = backend.mcuMotorType
     }
 
     function displayValue(value) {
@@ -39,8 +37,6 @@ Rectangle {
     function statusText() {
         if (!root.isSerialConnected)
             return "串口未连接"
-        if (root.mcuMotorType !== 2)
-            return "仅滚刷电机(type=2)提供 HALL 数据"
         if (!root.hallTelemetryAvailable)
             return "等待 HALL 数据"
         return "正在接收 HALL 数据"
@@ -281,10 +277,6 @@ Rectangle {
         enabled: backend !== null && root.isPageActive
 
         function onHallTelemetryChanged() {
-            root.syncCachedBackendState()
-        }
-
-        function onMcuMotorTypeUpdated() {
             root.syncCachedBackendState()
         }
     }

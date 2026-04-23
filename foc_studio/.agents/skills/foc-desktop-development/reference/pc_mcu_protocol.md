@@ -399,6 +399,7 @@ Note:
 - Hall A/B/C 各为 0 或 1，表示对应霍尔引脚的当前电平。
 - hall_state 编码：`hall_state = C + (B << 1) + (A << 2)`，取值范围 0~7，其中 1~6 有效，0 和 7 表示无效。
 - electric_sector 有效范围 0~5，-1 表示无效（hall_state=0 或 7 时）。
+- `Motor_Type` = 2、3、5时，才需要上传给PC端。
 - `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
 - PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
 
