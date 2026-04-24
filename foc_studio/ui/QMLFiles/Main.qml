@@ -191,6 +191,35 @@ ApplicationWindow {
                     }
                 }
 
+                // QD 按钮
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: root.currentPage === "QD" ? "#3498db" : "#34495e"
+                    radius: 5
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            text: "QD"
+                            color: "white"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.currentPage = "QD"
+                        }
+                    }
+                }
+
                 // LOG 按钮
                 Rectangle {
                     Layout.fillWidth: true
@@ -269,8 +298,9 @@ ApplicationWindow {
                              : root.currentPage === "MOT" ? 1
                              : root.currentPage === "HALL" ? 2
                              : root.currentPage === "CHT" ? 3
-                             : root.currentPage === "LOG" ? 4
-                             : 5
+                             : root.currentPage === "QD" ? 4
+                             : root.currentPage === "LOG" ? 5
+                             : 6
 
                 // SYS 页面 - 使用独立的组件
                 SYS {
@@ -294,6 +324,12 @@ ApplicationWindow {
                 CHT {
                     isSerialConnected: root.isSerialConnected
                     isPageActive: root.currentPage === "CHT"
+                }
+
+                // QD 页面 - Iq/Id 双曲线同图显示
+                QD {
+                    isSerialConnected: root.isSerialConnected
+                    isPageActive: root.currentPage === "QD"
                 }
 
                 // LOG 页面 - 显示 MCU 上报日志
