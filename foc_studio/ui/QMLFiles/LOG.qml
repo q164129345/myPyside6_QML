@@ -11,34 +11,55 @@ Rectangle {
 
     property bool isSerialConnected: false
     property bool isPageActive: false
-    property int maxLogCount: 500
+    property int maxLogLines: 500
     property int maxPendingLogCount: 200
     property int logFlushIntervalMs: 150
     property bool infoAutoScroll: true
     property bool warnErrorAutoScroll: true
     property var pendingLogs: []
+    property int infoLineCount: 0
+    property int warnErrorLineCount: 0
 
-    // INFO 日志数据模型
-    ListModel { id: infoModel }
-
-    // WARN/ERROR 日志数据模型
-    ListModel { id: warnErrorModel }
-
-    // 按批次写入模型，并把头部裁剪收敛成每批一次，避免达到上限后每条日志都整体搬移
-    function appendLogsToModel(targetModel, entries) {
-        if (entries.length === 0)
-            return
-
-        var overflowCount = targetModel.count + entries.length - root.maxLogCount
-        if (overflowCount > 0)
-            targetModel.remove(0, overflowCount)
-
-        for (var index = 0; index < entries.length; index += 1) {
-            targetModel.append(entries[index])
-        }
+    // HTML 特殊字符转义，防止日志内容破坏 RichText 解析
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
     }
 
-    // 先把高频日志积压到短队列，交给定时器批量刷入模型，降低主线程抖动
+    // 以 HTML 行的形式批量追加到 TextArea，超出上限时按行裁剪头部
+    function appendHtmlLines(textArea, htmlLines, currentCount) {
+        if (htmlLines.length === 0)
+            return currentCount
+
+        for (var i = 0; i < htmlLines.length; i += 1) {
+            textArea.append(htmlLines[i])
+        }
+
+        var newCount = currentCount + htmlLines.length
+        var overflow = newCount - root.maxLogLines
+
+        if (overflow > 0) {
+            var plain = textArea.getText(0, textArea.length)
+            var cutIndex = 0
+            for (var j = 0; j < overflow; j += 1) {
+                var nl = plain.indexOf("\n", cutIndex)
+                if (nl < 0) {
+                    cutIndex = plain.length
+                    break
+                }
+                cutIndex = nl + 1
+            }
+            if (cutIndex > 0)
+                textArea.remove(0, cutIndex)
+            newCount = Math.max(0, newCount - overflow)
+        }
+
+        return newCount
+    }
+
+    // 先把高频日志积压到短队列，交给定时器批量刷入视图，降低主线程抖动
     function enqueueLog(level, message) {
         pendingLogs.push({
             level: level,
@@ -62,12 +83,15 @@ Rectangle {
             logFlushTimer.start()
     }
 
-    // 清除模型时同步丢弃同类待刷新的日志，避免“清除”后旧队列又被补回界面。
+    // 清除时同步丢弃同类待刷新的日志，避免"清除"后旧队列又被补回界面
     function clearLogs(targetLevel) {
-        if (targetLevel === 0)
-            infoModel.clear()
-        else
-            warnErrorModel.clear()
+        if (targetLevel === 0) {
+            infoTextArea.clear()
+            root.infoLineCount = 0
+        } else {
+            warnErrorTextArea.clear()
+            root.warnErrorLineCount = 0
+        }
 
         var remainingLogs = []
         for (var index = 0; index < pendingLogs.length; index += 1) {
@@ -80,7 +104,7 @@ Rectangle {
         pendingLogs = remainingLogs
     }
 
-    // 批量刷新模型，并把自动滚动收敛成每批最多一次
+    // 批量刷新视图，并把自动滚动收敛成每批最多一次
     function flushPendingLogs() {
         if (!root.isPageActive) {
             logFlushTimer.stop()
@@ -94,27 +118,30 @@ Rectangle {
 
         var logsToFlush = pendingLogs
         pendingLogs = []
-        var infoEntries = []
-        var warnErrorEntries = []
+        var infoLines = []
+        var warnErrorLines = []
 
         for (var index = 0; index < logsToFlush.length; index += 1) {
             var item = logsToFlush[index]
             var prefix = item.level === 0 ? "[INFO]" : (item.level === 1 ? "[WARN]" : "[ERROR]")
             var color = item.level === 0 ? "#ffffff" : (item.level === 1 ? "#f1c40f" : "#e74c3c")
-            var entry = { logText: item.timestampText + " " + prefix + " " + item.message, logColor: color }
+            var plainLine = item.timestampText + " " + prefix + " " + item.message
+            var htmlLine = "<span style=\"color:" + color + ";\">" + root.escapeHtml(plainLine) + "</span>"
             if (item.level === 0)
-                infoEntries.push(entry)
+                infoLines.push(htmlLine)
             else
-                warnErrorEntries.push(entry)
+                warnErrorLines.push(htmlLine)
         }
 
-        appendLogsToModel(infoModel, infoEntries)
-        appendLogsToModel(warnErrorModel, warnErrorEntries)
+        root.infoLineCount = root.appendHtmlLines(infoTextArea, infoLines, root.infoLineCount)
+        root.warnErrorLineCount = root.appendHtmlLines(warnErrorTextArea, warnErrorLines, root.warnErrorLineCount)
 
-        if (root.isPageActive && root.infoAutoScroll && infoEntries.length > 0)
-            infoListView.positionViewAtEnd()
-        if (root.isPageActive && root.warnErrorAutoScroll && warnErrorEntries.length > 0)
-            warnErrorListView.positionViewAtEnd()
+        if (root.isPageActive && root.infoAutoScroll && infoLines.length > 0) {
+            infoTextArea.cursorPosition = infoTextArea.length
+        }
+        if (root.isPageActive && root.warnErrorAutoScroll && warnErrorLines.length > 0) {
+            warnErrorTextArea.cursorPosition = warnErrorTextArea.length
+        }
 
         logFlushTimer.stop()
     }
@@ -189,7 +216,7 @@ Rectangle {
                         onCheckedChanged: {
                             root.infoAutoScroll = checked
                             if (checked)
-                                infoListView.positionViewAtEnd()
+                                infoTextArea.cursorPosition = infoTextArea.length
                         }
                     }
 
@@ -209,32 +236,30 @@ Rectangle {
                     color: "#2c3e50"
                 }
 
-                // 日志列表
-                ListView {
-                    id: infoListView
+                // 日志显示（可跨行选择/复制）
+                ScrollView {
+                    id: infoScrollView
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    model: infoModel
                     clip: true
-                    spacing: 1
-                    reuseItems: true
 
-                    delegate: Text {
-                        width: infoListView.width
-                        text: model.logText
-                        color: model.logColor
+                    TextArea {
+                        id: infoTextArea
+                        readOnly: true
+                        selectByMouse: true
+                        selectByKeyboard: true
+                        persistentSelection: true
+                        wrapMode: TextEdit.WrapAnywhere
+                        textFormat: TextEdit.RichText
+                        color: "#ffffff"
                         font.pixelSize: 12
                         font.family: "Courier New"
                         font.bold: true
-                        wrapMode: Text.WrapAnywhere
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        visible: infoModel.count === 0
-                        text: root.isSerialConnected ? "暂无 INFO 日志" : "串口未连接"
-                        color: "#5a6a7a"
-                        font.pixelSize: 13
+                        background: null
+                        selectionColor: "#3b5770"
+                        selectedTextColor: "#ffffff"
+                        placeholderText: root.isSerialConnected ? "暂无 INFO 日志" : "串口未连接"
+                        placeholderTextColor: "#5a6a7a"
                     }
                 }
             }
@@ -279,7 +304,7 @@ Rectangle {
                         onCheckedChanged: {
                             root.warnErrorAutoScroll = checked
                             if (checked)
-                                warnErrorListView.positionViewAtEnd()
+                                warnErrorTextArea.cursorPosition = warnErrorTextArea.length
                         }
                     }
 
@@ -299,32 +324,30 @@ Rectangle {
                     color: "#2c3e50"
                 }
 
-                // 日志列表
-                ListView {
-                    id: warnErrorListView
+                // 日志显示（可跨行选择/复制）
+                ScrollView {
+                    id: warnErrorScrollView
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    model: warnErrorModel
                     clip: true
-                    spacing: 1
-                    reuseItems: true
 
-                    delegate: Text {
-                        width: warnErrorListView.width
-                        text: model.logText
-                        color: model.logColor
+                    TextArea {
+                        id: warnErrorTextArea
+                        readOnly: true
+                        selectByMouse: true
+                        selectByKeyboard: true
+                        persistentSelection: true
+                        wrapMode: TextEdit.WrapAnywhere
+                        textFormat: TextEdit.RichText
+                        color: "#f1c40f"
                         font.pixelSize: 12
                         font.family: "Courier New"
                         font.bold: true
-                        wrapMode: Text.WrapAnywhere
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        visible: warnErrorModel.count === 0
-                        text: root.isSerialConnected ? "暂无 WARN / ERROR 日志" : "串口未连接"
-                        color: "#5a6a7a"
-                        font.pixelSize: 13
+                        background: null
+                        selectionColor: "#3b5770"
+                        selectedTextColor: "#ffffff"
+                        placeholderText: root.isSerialConnected ? "暂无 WARN / ERROR 日志" : "串口未连接"
+                        placeholderTextColor: "#5a6a7a"
                     }
                 }
             }
