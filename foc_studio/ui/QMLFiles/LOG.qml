@@ -123,9 +123,9 @@ Rectangle {
 
         for (var index = 0; index < logsToFlush.length; index += 1) {
             var item = logsToFlush[index]
-            var prefix = item.level === 0 ? "[INFO]" : (item.level === 1 ? "[WARN]" : "[ERROR]")
+            var prefix = item.level === 0 ? "" : (item.level === 1 ? "[WARN] " : "[ERROR] ")
             var color = item.level === 0 ? "#ffffff" : (item.level === 1 ? "#f1c40f" : "#e74c3c")
-            var plainLine = item.timestampText + " " + prefix + " " + item.message
+            var plainLine = item.timestampText + " " + prefix + item.message
             var htmlLine = "<span style=\"color:" + color + ";\">" + root.escapeHtml(plainLine) + "</span>"
             if (item.level === 0)
                 infoLines.push(htmlLine)
