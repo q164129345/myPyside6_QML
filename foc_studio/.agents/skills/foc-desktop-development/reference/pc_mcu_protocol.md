@@ -301,12 +301,12 @@ Direction: MCU → PC
 Description: 响应 PC 的 CMD 0x04 电机类型查询，返回 MCU 固件中编译的电机类型。  
 Frequence: 被动响应（仅在收到 CMD 0x04 后发送，不主动上报）  
 Note:
-- 电机类型值与固件宏 `MOTOR_TYPE` 一致：1=边刷(中菱)，2=滚刷，3=新边刷(11050)，4=中菱轮毂电机，5=割刀电机。
+- 电机类型值与固件宏 `MOTOR_TYPE` 一致：1=边刷(中菱)，2=滚刷，3=新边刷(11050)，4=中菱轮毂电机，5=0.8N割刀电机，6=frx_0.4N割刀电机。
 - MCU 总是立即响应，不依赖心跳在线状态。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| 0 | 1 | uint8_t | 电机类型（1~5） |
+| 0 | 1 | uint8_t | 电机类型（1~6） |
 | **DATA_LEN** | 1 |  |  |
 
 ### CMD 0x6E - Speed Loop Params Response
@@ -399,7 +399,7 @@ Note:
 - Hall A/B/C 各为 0 或 1，表示对应霍尔引脚的当前电平。
 - hall_state 编码：`hall_state = C + (B << 1) + (A << 2)`，取值范围 0~7，其中 1~6 有效，0 和 7 表示无效。
 - electric_sector 有效范围 0~5，-1 表示无效（hall_state=0 或 7 时）。
-- `Motor_Type` = 2、3、5时，才需要上传给PC端。
+- `Motor_Type` = 2、3、5、6时，才需要上传给PC端。
 - `tick_ms`：MCU 调用 `HAL_GetTick()` 获取的采集时刻，单位毫秒，Big Endian uint32。
 - PC 侧时钟对齐：首帧记录 `pc_mcu_offset = Date.now() - tick_ms`，后续样本 `pc_timestamp = tick_ms + pc_mcu_offset`，以还原真实采集间隔，消除 DMA 批量发送导致的时间戳堆叠问题。
 

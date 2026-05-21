@@ -46,15 +46,17 @@ Rectangle {
     function motorTypeLabel(typeValue) {
         switch (typeValue) {
         case 1:
-            return "边刷"
+            return "中菱边刷"
         case 2:
             return "滚刷"
         case 3:
             return "旧边刷"
         case 4:
-            return "中置轮毂"
+            return "中菱轮毂"
         case 5:
-            return "割刀电机"
+            return "0.8N割刀"
+        case 6:
+            return "0.4N割刀"
         default:
             return "未知"
         }

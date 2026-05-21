@@ -22,7 +22,8 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
-HALL_SUPPORTED_MOTOR_TYPES: frozenset[int] = frozenset({2, 3, 5})
+# 支持 HALL 遥测的电机类型，需与 MCU 侧上传条件保持一致。
+HALL_SUPPORTED_MOTOR_TYPES: frozenset[int] = frozenset({2, 3, 5, 6})
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
@@ -65,7 +66,7 @@ class BackendFacade(QObject):
     motorCurrentUpdated = Signal(float, float)                # 电机电流 A, pc_timestamp_ms
     mcuSoftwareVersionUpdated = Signal(str)           # 下位机软件版本（main.sub.mini.fixed）
 
-    mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~5，0=未知）
+    mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~6，0=未知）
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C、hall_state、电气扇区、pc_ts
     hallTelemetryChanged = Signal()
 
@@ -606,7 +607,7 @@ class BackendFacade(QObject):
     @Slot(int)
     def _on_mcu_motor_type_updated(self, motor_type: int) -> None:
         """收到下位机电机类型后更新缓存并通知 UI。"""
-        valid_motor_type = motor_type if 1 <= motor_type <= 5 else DEFAULT_MOTOR_TYPE
+        valid_motor_type = motor_type if 1 <= motor_type <= 6 else DEFAULT_MOTOR_TYPE
         self._mcu_motor_type = valid_motor_type
         self.mcuMotorTypeUpdated.emit(valid_motor_type)
         if valid_motor_type not in HALL_SUPPORTED_MOTOR_TYPES:
