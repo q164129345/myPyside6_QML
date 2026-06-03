@@ -22,8 +22,6 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
-# 支持 HALL 遥测的电机类型，需与 MCU 侧上传条件保持一致。
-HALL_SUPPORTED_MOTOR_TYPES: frozenset[int] = frozenset({2, 3, 5, 6})
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
@@ -610,8 +608,6 @@ class BackendFacade(QObject):
         valid_motor_type = motor_type if 1 <= motor_type <= 6 else DEFAULT_MOTOR_TYPE
         self._mcu_motor_type = valid_motor_type
         self.mcuMotorTypeUpdated.emit(valid_motor_type)
-        if valid_motor_type not in HALL_SUPPORTED_MOTOR_TYPES:
-            self._reset_hall_telemetry()
 
         if valid_motor_type == DEFAULT_MOTOR_TYPE:
             if self._serial.isConnected:
