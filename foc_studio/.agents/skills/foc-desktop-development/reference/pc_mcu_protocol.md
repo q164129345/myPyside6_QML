@@ -413,5 +413,22 @@ Note:
 | 5      | 4    | uint32_t | HAL_GetTick() (ms)               |
 | **DATA_LEN** | 9 |  |                                 |
 
+### CMD 0x75 - Absolute Sensor Info
+Direction: MCU → PC
+Description: 上报绝对值编码器当前单圈原始计数值与单圈分辨率，用于调试诊断。
+Frequence: 100ms/次
+Note:
+- `pulse_counter` 对应 `AbsoluteEncoder485::getRawCount()`，表示当前单圈位置，不做角度换算。
+- `pulse_counter` 正常范围为 `0 ~ cpr - 1`。
+- `cpr` 表示一圈对应的总计数（counts per revolution），例如 16bit 编码器可为 `65536`，17bit 编码器可为 `131072`。
+- PC 侧可用 `angle_rad = pulse_counter / cpr * 2π` 计算机械角度。
+- 仅当电机传感器为绝对值编码器 485（`motor->sensor->IsAbsoluteEncoder485() == true`）时才上传。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 4 | uint32_t | pulse_counter，绝对值编码器单圈原始计数值 |
+| 4 | 4 | uint32_t | cpr，counts per revolution，单圈计数总数 |
+| **DATA_LEN** | 8 |  |  |
+
 
 ---
