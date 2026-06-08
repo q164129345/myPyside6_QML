@@ -18,6 +18,7 @@
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
   CMD 0x73  日志消息            uint8 + ASCII
   CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
+  CMD 0x75  绝对值编码器信息     2 * uint32 (pulse_counter, cpr)
 """
 
 import struct
@@ -42,6 +43,7 @@ CMD_CURRENT_LOOP_PARAMS: int = 0x6F
 CMD_MOTOR_LIMITS: int = 0x72
 CMD_LOG_MESSAGE: int = 0x73
 CMD_HALL_SENSOR_STATE: int = 0x74
+CMD_ABSOLUTE_SENSOR_INFO: int = 0x75
 
 
 class FrameDispatcher(QObject):
@@ -62,6 +64,7 @@ class FrameDispatcher(QObject):
     motorLimitsUpdated = Signal(float, float)                 # voltage_limit, current_limit
     logMessageReceived = Signal(int, str)                     # level(0=INFO,1=WARN,2=ERROR), message
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C, hall_state, sector, pc_ts
+    absEncoderTelemetryUpdated = Signal(int, int)              # pulse_counter, cpr
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,6 +84,7 @@ class FrameDispatcher(QObject):
             CMD_MOTOR_LIMITS: self._handle_motor_limits,
             CMD_LOG_MESSAGE: self._handle_log_message,
             CMD_HALL_SENSOR_STATE: self._handle_hall_sensor_state,
+            CMD_ABSOLUTE_SENSOR_INFO: self._handle_absolute_sensor_info,
         }
 
     def reset_clock_sync(self) -> None:
@@ -231,3 +235,10 @@ class FrameDispatcher(QObject):
             electric_sector,
             self._sync_and_get_pc_ts(tick_ms),
         )
+
+    def _handle_absolute_sensor_info(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x75：绝对值编码器单圈原始计数值（pulse_counter）与单圈分辨率（cpr）。"""
+        if frame.datalen != 8:
+            return
+        pulse_counter, cpr = struct.unpack_from(">II", frame.data, 0)
+        self.absEncoderTelemetryUpdated.emit(pulse_counter, cpr)

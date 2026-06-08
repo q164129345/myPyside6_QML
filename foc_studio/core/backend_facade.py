@@ -67,6 +67,7 @@ class BackendFacade(QObject):
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~6，0=未知）
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C、hall_state、电气扇区、pc_ts
     hallTelemetryChanged = Signal()
+    absEncoderTelemetryChanged = Signal()
 
     txFrameCountTotalChanged = Signal()
     rxFrameCountTotalChanged = Signal()
@@ -98,13 +99,17 @@ class BackendFacade(QObject):
         self._mcu_version_text: str = DEFAULT_MCU_VERSION
         # 下位机电机类型缓存，0 表示未知
         self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
-        # HALL 页面缓存：保存最近一次有效霍尔遥测，available 表示是否收到过有效帧
+        # 霍尔遥测缓存（供 POS 页面展示）：保存最近一次有效霍尔遥测，available 表示是否收到过有效帧
         self._hall_a: int = 0
         self._hall_b: int = 0
         self._hall_c: int = 0
         self._hall_state: int = 0
         self._electric_sector: int = -1
         self._hall_telemetry_available: bool = False
+        # 绝对值编码器遥测缓存（CMD 0x75，供 POS 页面展示）
+        self._abs_encoder_pulse_counter: int = 0
+        self._abs_encoder_cpr: int = 0
+        self._abs_encoder_telemetry_available: bool = False
         # TUNE 页面控制参数缓存，按速度环 / 电流环分别保存最近一次回读值
         self._control_params: dict[str, dict[str, float]] = _default_control_params()
         # TUNE 页面参数是否已完成一轮有效读回
@@ -162,6 +167,7 @@ class BackendFacade(QObject):
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
         self._dispatcher.hallTelemetryUpdated.connect(self._on_hall_telemetry_updated)
+        self._dispatcher.absEncoderTelemetryUpdated.connect(self._on_abs_encoder_telemetry_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
         self._dispatcher.currentLoopParamsUpdated.connect(self._on_current_loop_params_updated)
         self._dispatcher.motorLimitsUpdated.connect(self._on_motor_limits_updated)
@@ -229,6 +235,21 @@ class BackendFacade(QObject):
     def hallTelemetryAvailable(self) -> bool:
         """QML 只读属性：是否收到过有效的 HALL 遥测。"""
         return self._hall_telemetry_available
+
+    @Property(int, notify=absEncoderTelemetryChanged)  # type: ignore
+    def absEncoderPulseCounter(self) -> int:
+        """QML 只读属性：绝对值编码器单圈原始计数值（pulse_counter）。"""
+        return self._abs_encoder_pulse_counter
+
+    @Property(int, notify=absEncoderTelemetryChanged)  # type: ignore
+    def absEncoderCpr(self) -> int:
+        """QML 只读属性：绝对值编码器单圈分辨率（cpr，counts per revolution）。"""
+        return self._abs_encoder_cpr
+
+    @Property(bool, notify=absEncoderTelemetryChanged)  # type: ignore
+    def absEncoderTelemetryAvailable(self) -> bool:
+        """QML 只读属性：是否收到过有效的绝对值编码器遥测。"""
+        return self._abs_encoder_telemetry_available
 
     @Property(int, notify=txFrameCountTotalChanged)  # type: ignore
     def txFrameCountTotal(self) -> int:
@@ -498,6 +519,20 @@ class BackendFacade(QObject):
         self._hall_telemetry_available = available
         self.hallTelemetryChanged.emit()
 
+    def _set_abs_encoder_telemetry(self, pulse_counter: int, cpr: int, available: bool) -> None:
+        """更新绝对值编码器遥测缓存，并在状态变化时通知 QML。"""
+        if (
+            self._abs_encoder_pulse_counter == pulse_counter
+            and self._abs_encoder_cpr == cpr
+            and self._abs_encoder_telemetry_available == available
+        ):
+            return
+
+        self._abs_encoder_pulse_counter = pulse_counter
+        self._abs_encoder_cpr = cpr
+        self._abs_encoder_telemetry_available = available
+        self.absEncoderTelemetryChanged.emit()
+
     def _finish_param_loop_response(self, loop_key: str) -> None:
         """消费某个分组的回读结果，并在三组都完成时结束 busy。"""
         if loop_key not in self._pending_param_loops:
@@ -643,6 +678,11 @@ class BackendFacade(QObject):
             pc_timestamp_ms,
         )
 
+    @Slot(int, int)
+    def _on_abs_encoder_telemetry_updated(self, pulse_counter: int, cpr: int) -> None:
+        """收到 CMD 0x75 后更新绝对值编码器缓存，供 QML 实时显示。"""
+        self._set_abs_encoder_telemetry(pulse_counter, cpr, True)
+
     @Slot(float, float, float, float, float)
     def _on_speed_loop_params_updated(
         self,
@@ -683,8 +723,12 @@ class BackendFacade(QObject):
         self._reset_hall_telemetry()
 
     def _reset_hall_telemetry(self) -> None:
-        """将 HALL 页面缓存复位到默认无效态。"""
+        """将霍尔遥测缓存复位到默认无效态。"""
         self._set_hall_telemetry(0, 0, 0, 0, -1, False)
+
+    def _reset_abs_encoder_telemetry(self) -> None:
+        """将绝对值编码器遥测缓存复位到默认无效态。"""
+        self._set_abs_encoder_telemetry(0, 0, False)
 
     def _reset_control_params(self) -> None:
         """断开串口时复位 TUNE 页面参数状态和缓存。"""
@@ -733,5 +777,6 @@ class BackendFacade(QObject):
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
             self._reset_hall_telemetry()
+            self._reset_abs_encoder_telemetry()
             self._reset_control_params()
         self.connectionStatusChanged.emit(connected, message)

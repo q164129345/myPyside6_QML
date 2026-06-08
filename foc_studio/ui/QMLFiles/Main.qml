@@ -133,11 +133,11 @@ ApplicationWindow {
                     }
                 }
 
-                // HALL 按钮
+                // POS 按钮
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
-                    color: root.currentPage === "HALL" ? "#3498db" : "#34495e"
+                    color: root.currentPage === "POS" ? "#3498db" : "#34495e"
                     radius: 5
 
                     Column {
@@ -145,7 +145,7 @@ ApplicationWindow {
                         spacing: 5
 
                         Text {
-                            text: "HALL"
+                            text: "POS"
                             color: "white"
                             font.pixelSize: 10
                             font.bold: true
@@ -157,7 +157,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            root.currentPage = "HALL"
+                            root.currentPage = "POS"
                         }
                     }
                 }
@@ -296,7 +296,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 currentIndex: root.currentPage === "SYS" ? 0
                              : root.currentPage === "MOT" ? 1
-                             : root.currentPage === "HALL" ? 2
+                             : root.currentPage === "POS" ? 2
                              : root.currentPage === "CHT" ? 3
                              : root.currentPage === "QD" ? 4
                              : root.currentPage === "LOG" ? 5
@@ -314,10 +314,10 @@ ApplicationWindow {
                     isPageActive: root.currentPage === "MOT"
                 }
 
-                // HALL 页面 - 霍尔状态监控
-                HALL {
+                // POS 页面 - 位置传感器监控（霍尔 / 绝对式 / 增量式编码器）
+                POS {
                     isSerialConnected: root.isSerialConnected
-                    isPageActive: root.currentPage === "HALL"
+                    isPageActive: root.currentPage === "POS"
                 }
 
                 // CHT 页面 - 电机控制与实时波形
