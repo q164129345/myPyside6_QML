@@ -67,8 +67,8 @@ Rectangle {
         property int stateValue: 0
         property bool available: false
 
-        implicitWidth: 150
-        implicitHeight: 150
+        implicitWidth: 110
+        implicitHeight: 110
         radius: 8
         color: "white"
         border.color: "#bdc3c7"
@@ -76,30 +76,30 @@ Rectangle {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 8
+            anchors.margins: 10
+            spacing: 6
 
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: indicator.label
-                font.pixelSize: 15
+                font.pixelSize: 13
                 font.bold: true
                 color: "#2c3e50"
             }
 
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                width: 36
-                height: 36
-                radius: 18
+                width: 28
+                height: 28
+                radius: 14
                 color: !indicator.available ? "#b2bec3" : (indicator.stateValue !== 0 ? "#2ecc71" : "#5d6d7e")
                 border.color: !indicator.available ? "#95a5a6" : (indicator.stateValue !== 0 ? "#27ae60" : "#34495e")
                 border.width: 2
 
                 Rectangle {
-                    width: 15
-                    height: 15
-                    radius: 7.5
+                    width: 12
+                    height: 12
+                    radius: 6
                     anchors.centerIn: parent
                     color: !indicator.available ? "#dfe6e9" : (indicator.stateValue !== 0 ? "#a9f5bc" : "#85929e")
                     opacity: 0.8
@@ -109,7 +109,7 @@ Rectangle {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: indicator.available ? indicator.stateValue.toString() : "--"
-                font.pixelSize: 24
+                font.pixelSize: 20
                 font.bold: true
                 color: indicator.available ? "#2c3e50" : "#95a5a6"
             }
@@ -120,7 +120,7 @@ Rectangle {
                 text: indicator.available
                       ? (indicator.stateValue !== 0 ? "高电平" : "低电平")
                       : "无数据"
-                font.pixelSize: 12
+                font.pixelSize: 11
                 color: "#7f8c8d"
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
@@ -133,8 +133,8 @@ Rectangle {
         property string label: ""
         property string value: "--"
 
-        implicitWidth: 240
-        implicitHeight: 110
+        implicitWidth: 210
+        implicitHeight: 80
         radius: 8
         color: "white"
         border.color: "#bdc3c7"
@@ -142,12 +142,12 @@ Rectangle {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 8
+            anchors.margins: 10
+            spacing: 6
 
             Text {
                 text: display.label
-                font.pixelSize: 14
+                font.pixelSize: 13
                 font.bold: true
                 color: "#2c3e50"
             }
@@ -163,7 +163,7 @@ Rectangle {
                 Text {
                     anchors.centerIn: parent
                     text: display.value
-                    font.pixelSize: 28
+                    font.pixelSize: 22
                     font.bold: true
                     color: "#2980b9"
                 }
@@ -174,11 +174,11 @@ Rectangle {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 10
+        spacing: 8
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 64
+            implicitHeight: 56
             radius: 8
             color: "white"
             border.color: "#bdc3c7"
@@ -186,7 +186,7 @@ Rectangle {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 12
+                anchors.margins: 10
                 spacing: 4
 
                 Text {
@@ -206,7 +206,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: hallGroupLayout.implicitHeight + 32
+            implicitHeight: hallGroupLayout.implicitHeight + 24
             radius: 8
             color: "white"
             border.color: "#bdc3c7"
@@ -215,8 +215,8 @@ Rectangle {
             ColumnLayout {
                 id: hallGroupLayout
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 18
+                anchors.margins: 12
+                spacing: 12
 
                 Text {
                     text: "霍尔编码器"
@@ -296,7 +296,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: absGroupLayout.implicitHeight + 32
+            implicitHeight: absGroupLayout.implicitHeight + 24
             radius: 8
             color: "white"
             border.color: "#bdc3c7"
@@ -305,8 +305,8 @@ Rectangle {
             ColumnLayout {
                 id: absGroupLayout
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
+                anchors.margins: 12
+                spacing: 10
 
                 Text {
                     text: "绝对式编码器"
@@ -340,7 +340,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: incGroupLayout.implicitHeight + 32
+            implicitHeight: incGroupLayout.implicitHeight + 24
             radius: 8
             color: "white"
             border.color: "#bdc3c7"
@@ -349,8 +349,8 @@ Rectangle {
             ColumnLayout {
                 id: incGroupLayout
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
+                anchors.margins: 12
+                spacing: 10
 
                 Text {
                     text: "增量式编码器（协议待补充）"
