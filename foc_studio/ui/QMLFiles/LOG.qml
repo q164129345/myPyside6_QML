@@ -17,8 +17,8 @@ Rectangle {
     property bool infoAutoScroll: true
     property bool warnErrorAutoScroll: true
     property var pendingLogs: []
-    property int infoLineCount: 0
-    property int warnErrorLineCount: 0
+    property var infoLogLines: []
+    property var warnErrorLogLines: []
 
     // HTML 特殊字符转义，防止日志内容破坏 RichText 解析
     function escapeHtml(text) {
@@ -28,35 +28,22 @@ Rectangle {
             .replace(/>/g, "&gt;")
     }
 
-    // 以 HTML 行的形式批量追加到 TextArea，超出上限时按行裁剪头部
-    function appendHtmlLines(textArea, htmlLines, currentCount) {
+    // 以有界数组保存日志源，避免从 RichText 控件反查换行导致裁剪状态失配
+    function appendHtmlLines(existingLines, htmlLines) {
         if (htmlLines.length === 0)
-            return currentCount
+            return existingLines
 
-        for (var i = 0; i < htmlLines.length; i += 1) {
-            textArea.append(htmlLines[i])
-        }
+        var mergedLines = existingLines.concat(htmlLines)
+        var overflow = mergedLines.length - root.maxLogLines
+        if (overflow > 0)
+            return mergedLines.slice(overflow)
 
-        var newCount = currentCount + htmlLines.length
-        var overflow = newCount - root.maxLogLines
+        return mergedLines
+    }
 
-        if (overflow > 0) {
-            var plain = textArea.getText(0, textArea.length)
-            var cutIndex = 0
-            for (var j = 0; j < overflow; j += 1) {
-                var nl = plain.indexOf("\n", cutIndex)
-                if (nl < 0) {
-                    cutIndex = plain.length
-                    break
-                }
-                cutIndex = nl + 1
-            }
-            if (cutIndex > 0)
-                textArea.remove(0, cutIndex)
-            newCount = Math.max(0, newCount - overflow)
-        }
-
-        return newCount
+    // 将日志源数组渲染为 RichText 文本，保留跨行选择/复制能力
+    function renderLogLines(textArea, logLines) {
+        textArea.text = logLines.join("<br/>")
     }
 
     // 先把高频日志积压到短队列，交给定时器批量刷入视图，降低主线程抖动
@@ -86,11 +73,11 @@ Rectangle {
     // 清除时同步丢弃同类待刷新的日志，避免"清除"后旧队列又被补回界面
     function clearLogs(targetLevel) {
         if (targetLevel === 0) {
+            root.infoLogLines = []
             infoTextArea.clear()
-            root.infoLineCount = 0
         } else {
+            root.warnErrorLogLines = []
             warnErrorTextArea.clear()
-            root.warnErrorLineCount = 0
         }
 
         var remainingLogs = []
@@ -133,8 +120,14 @@ Rectangle {
                 warnErrorLines.push(htmlLine)
         }
 
-        root.infoLineCount = root.appendHtmlLines(infoTextArea, infoLines, root.infoLineCount)
-        root.warnErrorLineCount = root.appendHtmlLines(warnErrorTextArea, warnErrorLines, root.warnErrorLineCount)
+        if (infoLines.length > 0) {
+            root.infoLogLines = root.appendHtmlLines(root.infoLogLines, infoLines)
+            root.renderLogLines(infoTextArea, root.infoLogLines)
+        }
+        if (warnErrorLines.length > 0) {
+            root.warnErrorLogLines = root.appendHtmlLines(root.warnErrorLogLines, warnErrorLines)
+            root.renderLogLines(warnErrorTextArea, root.warnErrorLogLines)
+        }
 
         if (root.isPageActive && root.infoAutoScroll && infoLines.length > 0) {
             infoTextArea.cursorPosition = infoTextArea.length
