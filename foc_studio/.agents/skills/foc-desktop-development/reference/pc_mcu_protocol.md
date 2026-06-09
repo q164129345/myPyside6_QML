@@ -99,7 +99,8 @@ Description: PC 查询电流环 PID 参数。
 Frequence: On demand
 Note:
 - MCU 收到后立即以 CMD 0x6F 响应。
-- 由 `TUNE` 页的“读取参数”按钮触发，也会在 UI 从其他页面切换到 `TUNE` 时触发。
+- MCU 响应（CMD 0x6F）包含 Iq（q 轴/转矩环）与 Id（d 轴/磁场环）两组独立 PID 参数（共 40 字节），二者已解耦，分别对应 `motor->PID_current_q`/`LPF_current_q` 与 `motor->PID_current_d`/`LPF_current_d`。
+- 由 `TUNE` 页的”读取参数”按钮触发，也会在 UI 从其他页面切换到 `TUNE` 时触发。
 - PC 侧会将 CMD 0x05、CMD 0x06 与 CMD 0x0B 作为一组刷新动作连续发送。
 
 | Offset | Size | Type | Description |
@@ -128,23 +129,28 @@ Note:
 
 ### CMD 0x08 - Set Current Loop Params
 Direction: PC → MCU
-Description: PC 设置电流环 PID 参数。
+Description: PC 设置电流环 PID 参数（Iq 与 Id 两组参数各自独立设置，互不耦合）。
 Frequence: On demand
 Note:
-- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
+- payload 固定 40 字节，分为两组，每组 20 字节，组内参数顺序均为：kp → ki → kd → ramp → tf；第一组对应 Iq（q 轴/转矩环），第二组对应 Id（d 轴/磁场环），二者完全独立、互不影响。
 - PC 侧编码：`raw = round(value × 1000000)`，打包为 int32 Big Endian 发送。
-- MCU 侧解码：`value = raw / 1000000.0f`。
+- MCU 侧解码：`value = raw / 1000000.0f`，第一组写入 `motor->PID_current_q`/`LPF_current_q`，第二组写入 `motor->PID_current_d`/`LPF_current_d`。
 - ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 - PC 不等待单独的写入应答帧；发送完 CMD 0x07、CMD 0x08 与 CMD 0x0C 后，会立即再发 CMD 0x05、CMD 0x06 和 CMD 0x0B 读回校验。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| 0 | 4 | int32 | kp（×1000000 编码） |
-| 4 | 4 | int32 | ki（×1000000 编码） |
-| 8 | 4 | int32 | kd（×1000000 编码） |
-| 12 | 4 | int32 | ramp，output_ramp（×1000000 编码） |
-| 16 | 4 | int32 | tf，单位秒（×1000000 编码） |
-| **DATA_LEN** | 20 |  |  |
+| 0 | 4 | int32 | Iq（q 轴/转矩环）kp（×1000000 编码） |
+| 4 | 4 | int32 | Iq（q 轴/转矩环）ki（×1000000 编码） |
+| 8 | 4 | int32 | Iq（q 轴/转矩环）kd（×1000000 编码） |
+| 12 | 4 | int32 | Iq（q 轴/转矩环）ramp，output_ramp（×1000000 编码） |
+| 16 | 4 | int32 | Iq（q 轴/转矩环）tf，单位秒（×1000000 编码） |
+| 20 | 4 | int32 | Id（d 轴/磁场环）kp（×1000000 编码） |
+| 24 | 4 | int32 | Id（d 轴/磁场环）ki（×1000000 编码） |
+| 28 | 4 | int32 | Id（d 轴/磁场环）kd（×1000000 编码） |
+| 32 | 4 | int32 | Id（d 轴/磁场环）ramp，output_ramp（×1000000 编码） |
+| 36 | 4 | int32 | Id（d 轴/磁场环）tf，单位秒（×1000000 编码） |
+| **DATA_LEN** | 40 |  |  |
 
 ### CMD 0x0A - Reboot MCU
 Direction: PC → MCU
@@ -330,22 +336,27 @@ Note:
 
 ### CMD 0x6F - Current Loop Params Response
 Direction: MCU → PC
-Description: 响应 CMD 0x06，返回电流环 PID 参数。
+Description: 响应 CMD 0x06，返回电流环 PID 参数（Iq 与 Id 两组独立参数）。
 Frequence: 被动响应（仅在收到 CMD 0x06 后发送，不主动上报）
 Note:
-- payload 固定 20 字节，参数顺序：kp → ki → kd → ramp → tf。
+- payload 固定 40 字节，分为两组，每组 20 字节，组内参数顺序均为：kp → ki → kd → ramp → tf；第一组为 Iq（q 轴/转矩环，对应 `motor->PID_current_q`/`LPF_current_q`），第二组为 Id（d 轴/磁场环，对应 `motor->PID_current_d`/`LPF_current_d`），二者完全独立。
 - MCU 侧编码：`raw = (int32_t)roundf(value × 1000000)`，打包为 int32 Big Endian 发送。
 - PC 侧解码：`value = raw / 1000000.0`。
 - ramp 单位为输出值/秒（output_ramp），tf 单位为秒。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| 0 | 4 | int32 | kp（÷1000000 解码） |
-| 4 | 4 | int32 | ki（÷1000000 解码） |
-| 8 | 4 | int32 | kd（÷1000000 解码） |
-| 12 | 4 | int32 | ramp，output_ramp（÷1000000 解码） |
-| 16 | 4 | int32 | tf，单位秒（÷1000000 解码） |
-| **DATA_LEN** | 20 |  |  |
+| 0 | 4 | int32 | Iq（q 轴/转矩环）kp（÷1000000 解码） |
+| 4 | 4 | int32 | Iq（q 轴/转矩环）ki（÷1000000 解码） |
+| 8 | 4 | int32 | Iq（q 轴/转矩环）kd（÷1000000 解码） |
+| 12 | 4 | int32 | Iq（q 轴/转矩环）ramp，output_ramp（÷1000000 解码） |
+| 16 | 4 | int32 | Iq（q 轴/转矩环）tf，单位秒（÷1000000 解码） |
+| 20 | 4 | int32 | Id（d 轴/磁场环）kp（÷1000000 解码） |
+| 24 | 4 | int32 | Id（d 轴/磁场环）ki（÷1000000 解码） |
+| 28 | 4 | int32 | Id（d 轴/磁场环）kd（÷1000000 解码） |
+| 32 | 4 | int32 | Id（d 轴/磁场环）ramp，output_ramp（÷1000000 解码） |
+| 36 | 4 | int32 | Id（d 轴/磁场环）tf，单位秒（÷1000000 解码） |
+| **DATA_LEN** | 40 |  |  |
 
 ### CMD 0x71 - Reboot MCU Acknowledgement
 Direction: MCU → PC
