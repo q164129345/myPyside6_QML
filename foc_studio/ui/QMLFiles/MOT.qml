@@ -403,7 +403,7 @@ Rectangle {
 
                     TelemetryRow {
                         label: "电机类型"
-                        range: "(0~5)"
+                        range: "(0~6)"
                         value: root.isSerialConnected
                                ? (root.mcuMotorType.toString() + " (" + root.motorTypeLabel(root.mcuMotorType) + ")")
                                : "--"
