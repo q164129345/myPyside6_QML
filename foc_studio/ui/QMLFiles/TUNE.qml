@@ -47,7 +47,8 @@ Rectangle {
     // 页面上的参数分组定义，统一驱动三张卡片渲染
     readonly property var parameterGroups: [
         { "groupKey": "speedLoop", "title": "速度环参数", "fields": parameterFields },
-        { "groupKey": "currentLoop", "title": "电流环参数", "fields": parameterFields },
+        { "groupKey": "currentLoopIq", "title": "电流环参数（Iq / 转矩环）", "fields": parameterFields },
+        { "groupKey": "currentLoopId", "title": "电流环参数（Id / 磁场环）", "fields": parameterFields },
         { "groupKey": "motorLimits", "title": "电机限幅参数", "fields": motorLimitFields }
     ]
 
@@ -55,7 +56,8 @@ Rectangle {
     function createDefaultParams() {
         return {
             "speedLoop": { "kp": 0.350, "ki": 12.000, "kd": 0.000, "ramp": 0.000, "tf": 0.010 },
-            "currentLoop": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "ramp": 0.000, "tf": 0.005 },
+            "currentLoopIq": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "ramp": 0.000, "tf": 0.005 },
+            "currentLoopId": { "kp": 0.180, "ki": 8.500, "kd": 0.000, "ramp": 0.000, "tf": 0.005 },
             "motorLimits": { "voltage_limit": 12.000, "current_limit": 5.000 }
         }
     }

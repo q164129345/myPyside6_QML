@@ -35,7 +35,8 @@ def _default_control_params() -> dict[str, dict[str, float]]:
     """创建默认的 PID 参数缓存对象。"""
     return {
         "speedLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
-        "currentLoop": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
+        "currentLoopIq": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
+        "currentLoopId": {"kp": 0.0, "ki": 0.0, "kd": 0.0, "ramp": 0.0, "tf": 0.0},
         "motorLimits": {"voltage_limit": 0.0, "current_limit": 0.0},
     }
 
@@ -296,7 +297,8 @@ class BackendFacade(QObject):
         """QML 只读属性：TUNE 页面控制参数缓存。"""
         return {
             "speedLoop": dict(self._control_params["speedLoop"]),
-            "currentLoop": dict(self._control_params["currentLoop"]),
+            "currentLoopIq": dict(self._control_params["currentLoopIq"]),
+            "currentLoopId": dict(self._control_params["currentLoopId"]),
             "motorLimits": dict(self._control_params["motorLimits"]),
         }
 
@@ -390,10 +392,11 @@ class BackendFacade(QObject):
 
         try:
             speed_loop = self._extract_loop_params(params, "speedLoop")
-            current_loop = self._extract_loop_params(params, "currentLoop")
+            current_loop_iq = self._extract_loop_params(params, "currentLoopIq")
+            current_loop_id = self._extract_loop_params(params, "currentLoopId")
             motor_limits = self._extract_motor_limits(params)
             self._serial.sendData(build_set_speed_loop_params(*speed_loop))
-            self._serial.sendData(build_set_current_loop_params(*current_loop))
+            self._serial.sendData(build_set_current_loop_params(*current_loop_iq, *current_loop_id))
             self._serial.sendData(build_set_motor_limits(*motor_limits))
         except (KeyError, TypeError, ValueError) as error:
             self._set_control_params_last_status(f"参数校验失败: {error}")
@@ -427,7 +430,7 @@ class BackendFacade(QObject):
         if self._control_params_busy:
             return
 
-        self._pending_param_loops = {"speedLoop", "currentLoop", "motorLimits"}
+        self._pending_param_loops = {"speedLoop", "currentLoopIq", "currentLoopId", "motorLimits"}
         self._post_write_readback_pending = post_write_readback
         self._set_control_params_available(False)
         self._set_control_params_busy(True)
@@ -696,18 +699,25 @@ class BackendFacade(QObject):
         self._update_loop_params("speedLoop", kp, ki, kd, ramp, tf)
         self._finish_param_loop_response("speedLoop")
 
-    @Slot(float, float, float, float, float)
+    @Slot(float, float, float, float, float, float, float, float, float, float)
     def _on_current_loop_params_updated(
         self,
-        kp: float,
-        ki: float,
-        kd: float,
-        ramp: float,
-        tf: float,
+        iq_kp: float,
+        iq_ki: float,
+        iq_kd: float,
+        iq_ramp: float,
+        iq_tf: float,
+        id_kp: float,
+        id_ki: float,
+        id_kd: float,
+        id_ramp: float,
+        id_tf: float,
     ) -> None:
-        """收到电流环参数回读后更新缓存，并尝试结束当前同步流程。"""
-        self._update_loop_params("currentLoop", kp, ki, kd, ramp, tf)
-        self._finish_param_loop_response("currentLoop")
+        """收到电流环参数回读后更新 Iq、Id 两组缓存，并尝试结束当前同步流程。"""
+        self._update_loop_params("currentLoopIq", iq_kp, iq_ki, iq_kd, iq_ramp, iq_tf)
+        self._update_loop_params("currentLoopId", id_kp, id_ki, id_kd, id_ramp, id_tf)
+        self._finish_param_loop_response("currentLoopIq")
+        self._finish_param_loop_response("currentLoopId")
 
     @Slot(float, float)
     def _on_motor_limits_updated(self, voltage_limit: float, current_limit: float) -> None:

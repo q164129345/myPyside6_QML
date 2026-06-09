@@ -79,14 +79,32 @@ def build_set_speed_loop_params(
 
 
 def build_set_current_loop_params(
-    kp: float,
-    ki: float,
-    kd: float,
-    ramp: float,
-    tf: float,
+    iq_kp: float,
+    iq_ki: float,
+    iq_kd: float,
+    iq_ramp: float,
+    iq_tf: float,
+    id_kp: float,
+    id_ki: float,
+    id_kd: float,
+    id_ramp: float,
+    id_tf: float,
 ) -> bytes:
-    """构造电流环 PID 参数设置帧。"""
-    return _build_set_loop_params(CMD_SET_CURRENT_LOOP_PARAMS, kp, ki, kd, ramp, tf)
+    """构造电流环 PID 参数设置帧（Iq 与 Id 两组独立参数，各按 kp/ki/kd/ramp/tf 顺序）。"""
+    payload = struct.pack(
+        ">iiiiiiiiii",
+        _encode_scaled_int32(iq_kp, "iq_kp", _PARAM_SCALE),
+        _encode_scaled_int32(iq_ki, "iq_ki", _PARAM_SCALE),
+        _encode_scaled_int32(iq_kd, "iq_kd", _PARAM_SCALE),
+        _encode_scaled_int32(iq_ramp, "iq_ramp", _PARAM_SCALE),
+        _encode_scaled_int32(iq_tf, "iq_tf", _PARAM_SCALE),
+        _encode_scaled_int32(id_kp, "id_kp", _PARAM_SCALE),
+        _encode_scaled_int32(id_ki, "id_ki", _PARAM_SCALE),
+        _encode_scaled_int32(id_kd, "id_kd", _PARAM_SCALE),
+        _encode_scaled_int32(id_ramp, "id_ramp", _PARAM_SCALE),
+        _encode_scaled_int32(id_tf, "id_tf", _PARAM_SCALE),
+    )
+    return pack_frame(CMD_SET_CURRENT_LOOP_PARAMS, payload)
 
 
 def build_query_motor_limits() -> bytes:

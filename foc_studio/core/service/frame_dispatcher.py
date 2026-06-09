@@ -14,7 +14,7 @@
   CMD 0x6C  错误码              uint16
   CMD 0x6D  电机类型            uint8
   CMD 0x6E  速度环参数          5 * int32，按 1/1000000 还原为 float
-  CMD 0x6F  电流环参数          5 * int32，按 1/1000000 还原为 float
+  CMD 0x6F  电流环参数          10 * int32（Iq/Id 两组各5个），按 1/1000000 还原为 float
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
   CMD 0x73  日志消息            uint8 + ASCII
   CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
@@ -60,7 +60,10 @@ class FrameDispatcher(QObject):
 
     mcuMotorTypeUpdated = Signal(int)                         # 电机类型 0~255
     speedLoopParamsUpdated = Signal(float, float, float, float, float)    # Kp, Ki, Kd, Ramp, Tf
-    currentLoopParamsUpdated = Signal(float, float, float, float, float)  # Kp, Ki, Kd, Ramp, Tf
+    currentLoopParamsUpdated = Signal(
+        float, float, float, float, float,  # Iq: Kp, Ki, Kd, Ramp, Tf
+        float, float, float, float, float,  # Id: Kp, Ki, Kd, Ramp, Tf
+    )
     motorLimitsUpdated = Signal(float, float)                 # voltage_limit, current_limit
     logMessageReceived = Signal(int, str)                     # level(0=INFO,1=WARN,2=ERROR), message
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C, hall_state, sector, pc_ts
@@ -190,17 +193,25 @@ class FrameDispatcher(QObject):
         )
 
     def _handle_current_loop_params(self, frame: ParsedFrame) -> None:
-        """解码 CMD 0x6F：电流环 PID 参数，按 1/1000000 还原为工程量。"""
-        if frame.datalen != 20:
+        """解码 CMD 0x6F：电流环 PID 参数（Iq、Id 两组独立参数），按 1/1000000 还原为工程量。"""
+        if frame.datalen != 40:
             return
-        # 协议已升级为五参数模型，固定顺序为 kp/ki/kd/ramp/tf
-        raw_kp, raw_ki, raw_kd, raw_ramp, raw_tf = struct.unpack_from(">iiiii", frame.data, 0)
+        # 前20字节为Iq（q轴/转矩环），后20字节为Id（d轴/磁场环），组内顺序均为 kp/ki/kd/ramp/tf
+        (
+            raw_iq_kp, raw_iq_ki, raw_iq_kd, raw_iq_ramp, raw_iq_tf,
+            raw_id_kp, raw_id_ki, raw_id_kd, raw_id_ramp, raw_id_tf,
+        ) = struct.unpack_from(">iiiiiiiiii", frame.data, 0)
         self.currentLoopParamsUpdated.emit(
-            raw_kp / 1000000.0,
-            raw_ki / 1000000.0,
-            raw_kd / 1000000.0,
-            raw_ramp / 1000000.0,
-            raw_tf / 1000000.0,
+            raw_iq_kp / 1000000.0,
+            raw_iq_ki / 1000000.0,
+            raw_iq_kd / 1000000.0,
+            raw_iq_ramp / 1000000.0,
+            raw_iq_tf / 1000000.0,
+            raw_id_kp / 1000000.0,
+            raw_id_ki / 1000000.0,
+            raw_id_kd / 1000000.0,
+            raw_id_ramp / 1000000.0,
+            raw_id_tf / 1000000.0,
         )
 
     def _handle_motor_limits(self, frame: ParsedFrame) -> None:
