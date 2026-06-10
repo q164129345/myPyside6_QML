@@ -158,8 +158,7 @@ Description: PC 命令 MCU 执行软件复位重启。
 Frequence: 按需
 Note:
 - 无 DATA payload。
-- MCU 收到该命令后，应先以 CMD 0x71 回传确认帧，再执行软件复位（确保 PC 侧能感知到重启动作）。
-- PC 侧收到 CMD 0x71 后，应将连接状态重置为"未连接"，并等待串口重新上线。
+- MCU 收到该命令后，立即重启（比如：NVIC_SystemReset()或HAL_NVIC_SystemReset()）
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
@@ -192,6 +191,30 @@ Note:
 | 0 | 4 | int32 | voltage_limit（×1000000 编码） |
 | 4 | 4 | int32 | current_limit（×1000000 编码） |
 | **DATA_LEN** | 8 |  |  |
+
+### CMD 0x0D - Query DIP Switch ID
+Direction: PC → MCU
+Description: PC 查询 MCU 的拨码开关 ID。
+Frequence: 按需
+Note:
+- 无 DATA payload。
+- MCU 收到后立即以 CMD 0x71 响应。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
+
+### CMD 0x0E - Query External Flash ID
+Direction: PC → MCU
+Description: PC 查询外部 Flash 的 Manufacturer ID 与 Device ID（JEDEC ID）。
+Frequence: 按需
+Note:
+- 无 DATA payload。
+- MCU 收到后立即以 CMD 0x76 响应。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| **DATA_LEN** | 0 |  | 无 payload |
 
 ## MCU -> PC
 
@@ -358,17 +381,17 @@ Note:
 | 36 | 4 | int32 | Id（d 轴/磁场环）tf，单位秒（÷1000000 解码） |
 | **DATA_LEN** | 40 |  |  |
 
-### CMD 0x71 - Reboot MCU Acknowledgement
+### CMD 0x71 - DIP Switch ID Response
 Direction: MCU → PC
-Description: 响应 CMD 0x0A，MCU 在执行软件复位前通知 PC 已收到重启指令。
-Frequence: 被动响应（仅在收到 CMD 0x0A 后发送，不主动上报）
+Description: 响应 CMD 0x0D，返回 MCU 的拨码开关 ID。
+Frequence: 被动响应（仅在收到 CMD 0x0D 后发送，不主动上报）
 Note:
-- 无 DATA payload。
-- MCU 发送本帧后立即执行软件复位，PC 侧收到后应将连接状态重置为"未连接"。
+- payload 固定 1 字节，为拨码开关当前读取到的 ID 值。
 
 | Offset | Size | Type | Description |
 |------|------|------|-------------|
-| **DATA_LEN** | 0 |  | 无 payload |
+| 0 | 1 | uint8_t | 拨码开关 ID（0~255） |
+| **DATA_LEN** | 1 |  |  |
 
 ### CMD 0x72 - Motor Limits Response
 Direction: MCU → PC
@@ -440,6 +463,21 @@ Note:
 | 0 | 4 | uint32_t | pulse_counter，绝对值编码器单圈原始计数值 |
 | 4 | 4 | uint32_t | cpr，counts per revolution，单圈计数总数 |
 | **DATA_LEN** | 8 |  |  |
+
+### CMD 0x76 - External Flash ID Response
+Direction: MCU → PC
+Description: 响应 CMD 0x0E，返回外部 Flash 的 Manufacturer ID 与 Device ID（JEDEC ID）。
+Frequence: 被动响应（仅在收到 CMD 0x0E 后发送，不主动上报）
+Note:
+- payload 固定 2 字节。
+- Manufacturer ID：厂商标识，例如 Winbond = 0xEF。
+- Device ID：设备标识，例如 W25Q128 = 0x17。
+
+| Offset | Size | Type | Description |
+|------|------|------|-------------|
+| 0 | 1 | uint8_t | Manufacturer ID |
+| 1 | 1 | uint8_t | Device ID |
+| **DATA_LEN** | 2 |  |  |
 
 
 ---
