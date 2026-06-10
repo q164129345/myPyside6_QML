@@ -11,7 +11,7 @@ Rectangle {
 
     // 串口波特率
     readonly property int baudRate: 460800
-    readonly property string softwareVersion: "v0.0.0.17"
+    readonly property string softwareVersion: "v0.0.0.18"
 
     // 接收串口连接状态
     property bool isSerialConnected: false
@@ -177,6 +177,18 @@ Rectangle {
                 onClicked: {
                     backend.disconnectSerial()
                 }
+            }
+        }
+
+        // 重启 MCU 按钮
+        RowLayout {
+            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+
+            Button {
+                text: "重启 MCU"
+                enabled: root.isSerialConnected
+                onClicked: backend.rebootMcu()
             }
         }
 

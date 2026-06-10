@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 from core.command.motor_command import build_motor_control
 from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
+from core.command.reboot_command import build_reboot_mcu
 from core.command.software_version_command import build_query_software_version
 from core.command.tune_params_command import (
     build_query_current_loop_params,
@@ -331,6 +332,12 @@ class BackendFacade(QObject):
         self._reset_mcu_version()
         self._reset_mcu_motor_type()
         self._serial.closePort()
+
+    @Slot()
+    def rebootMcu(self) -> None:
+        """发送 CMD 0x0A，命令 MCU 执行软件复位。"""
+        if self._serial.isConnected:
+            self._serial.sendData(build_reboot_mcu())
 
     @Slot()
     def scanPorts(self) -> None:
