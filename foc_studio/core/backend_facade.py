@@ -718,8 +718,9 @@ class BackendFacade(QObject):
     def _on_mcu_dip_switch_id_updated(self, dip_id: int) -> None:
         """收到拨码开关 ID 后更新缓存并通知 UI。"""
         valid_id = dip_id if 0 <= dip_id <= 7 else DEFAULT_DIP_SWITCH_ID
-        self._mcu_dip_switch_id = valid_id
-        self.mcuDipSwitchIdUpdated.emit(valid_id)
+        if self._mcu_dip_switch_id != valid_id:
+            self._mcu_dip_switch_id = valid_id
+            self.mcuDipSwitchIdUpdated.emit(valid_id)
 
         if valid_id == DEFAULT_DIP_SWITCH_ID:
             if self._serial.isConnected:

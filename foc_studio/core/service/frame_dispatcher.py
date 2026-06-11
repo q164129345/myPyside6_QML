@@ -15,10 +15,10 @@
   CMD 0x6D  电机类型            uint8
   CMD 0x6E  速度环参数          5 * int32，按 1/1000000 还原为 float
   CMD 0x6F  电流环参数          10 * int32（Iq/Id 两组各5个），按 1/1000000 还原为 float
+  CMD 0x71  拨码开关 ID          uint8
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
   CMD 0x73  日志消息            uint8 + ASCII
   CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
-  CMD 0x71  拨码开关 ID          uint8
   CMD 0x75  绝对值编码器信息     2 * uint32 (pulse_counter, cpr)
 """
 
@@ -38,10 +38,10 @@ CMD_SOFTWARE_VERSION: int = 0x68
 CMD_DQ_COMPONENTS: int = 0x69
 CMD_MOTOR_CURRENT: int = 0x6A
 CMD_ERROR_CODE: int = 0x6C
-CMD_DIP_SWITCH_ID: int = 0x71
 CMD_MOTOR_TYPE: int = 0x6D
 CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
+CMD_DIP_SWITCH_ID: int = 0x71
 CMD_MOTOR_LIMITS: int = 0x72
 CMD_LOG_MESSAGE: int = 0x73
 CMD_HALL_SENSOR_STATE: int = 0x74
