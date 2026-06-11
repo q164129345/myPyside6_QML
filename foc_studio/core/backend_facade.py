@@ -2,6 +2,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
+from core.command.dip_switch_command import build_query_dip_switch_id
 from core.command.motor_command import build_motor_control
 from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
@@ -23,6 +24,7 @@ from core.transport.serial import mySerial
 
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
+DEFAULT_DIP_SWITCH_ID = 0xFF
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
@@ -67,6 +69,7 @@ class BackendFacade(QObject):
     mcuSoftwareVersionUpdated = Signal(str)           # 下位机软件版本（main.sub.mini.fixed）
 
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~6，0=未知）
+    mcuDipSwitchIdUpdated = Signal(int)               # 拨码开关 ID（0~7，0xFF=未知）
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C、hall_state、电气扇区、pc_ts
     hallTelemetryChanged = Signal()
     absEncoderTelemetryChanged = Signal()
@@ -101,6 +104,8 @@ class BackendFacade(QObject):
         self._mcu_version_text: str = DEFAULT_MCU_VERSION
         # 下位机电机类型缓存，0 表示未知
         self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
+        # 拨码开关 ID 缓存，0xFF 表示尚未获取到有效值（有效范围 0~7）
+        self._mcu_dip_switch_id: int = DEFAULT_DIP_SWITCH_ID
         # 霍尔遥测缓存（供 POS 页面展示）：保存最近一次有效霍尔遥测，available 表示是否收到过有效帧
         self._hall_a: int = 0
         self._hall_b: int = 0
@@ -143,6 +148,11 @@ class BackendFacade(QObject):
         self._motor_type_query_timer.setInterval(1000)
         self._motor_type_query_timer.timeout.connect(self._on_motor_type_query_timer)
 
+        # 拨码 ID 查询轮询定时器：连接后若 ID 仍是 0xFF，每 1 秒发送一次 CMD 0x0D
+        self._dip_switch_query_timer = QTimer(self)
+        self._dip_switch_query_timer.setInterval(1000)
+        self._dip_switch_query_timer.timeout.connect(self._on_dip_switch_query_timer)
+
         # TUNE 页面参数超时定时器：读取或写后读回超时后复位 busy 并更新状态
         self._tune_param_timeout_timer = QTimer(self)
         self._tune_param_timeout_timer.setSingleShot(True)
@@ -168,6 +178,7 @@ class BackendFacade(QObject):
         self._dispatcher.motorCurrentUpdated.connect(self.motorCurrentUpdated)
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
+        self._dispatcher.mcuDipSwitchIdUpdated.connect(self._on_mcu_dip_switch_id_updated)
         self._dispatcher.hallTelemetryUpdated.connect(self._on_hall_telemetry_updated)
         self._dispatcher.absEncoderTelemetryUpdated.connect(self._on_abs_encoder_telemetry_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
@@ -207,6 +218,11 @@ class BackendFacade(QObject):
     def mcuMotorType(self) -> int:
         """QML 只读属性：下位机电机类型（0=未知）。"""
         return self._mcu_motor_type
+
+    @Property(int, notify=mcuDipSwitchIdUpdated)  # type: ignore
+    def mcuDipSwitchId(self) -> int:
+        """QML 只读属性：拨码开关 ID（0xFF=未知，有效范围 0~7）。"""
+        return self._mcu_dip_switch_id
 
     @Property(int, notify=hallTelemetryChanged)  # type: ignore
     def hallA(self) -> int:
@@ -329,15 +345,28 @@ class BackendFacade(QObject):
         self._stop_heartbeat()
         self._stop_version_query_loop()
         self._stop_motor_type_query_loop()
+        self._stop_dip_switch_query_loop()
         self._reset_mcu_version()
         self._reset_mcu_motor_type()
+        self._reset_mcu_dip_switch_id()
         self._serial.closePort()
 
     @Slot()
     def rebootMcu(self) -> None:
         """发送 CMD 0x0A，命令 MCU 执行软件复位。"""
-        if self._serial.isConnected:
-            self._serial.sendData(build_reboot_mcu())
+        if not self._serial.isConnected:
+            return
+        self._serial.sendData(build_reboot_mcu())
+        # MCU 重启后所有运行时状态失效，清除缓存并重新触发查询轮询
+        self._reset_mcu_version()
+        self._send_version_query_once()
+        self._start_version_query_loop()
+        self._reset_mcu_motor_type()
+        self._send_motor_type_query_once()
+        self._start_motor_type_query_loop()
+        self._reset_mcu_dip_switch_id()
+        self._send_dip_switch_query_once()
+        self._start_dip_switch_query_loop()
 
     @Slot()
     def scanPorts(self) -> None:
@@ -428,6 +457,11 @@ class BackendFacade(QObject):
         """连接状态下发送一次 CMD 0x04 电机类型查询帧。"""
         if self._serial.isConnected:
             self._serial.sendData(build_query_motor_type())
+
+    def _send_dip_switch_query_once(self) -> None:
+        """连接状态下发送一次 CMD 0x0D 拨码 ID 查询帧。"""
+        if self._serial.isConnected:
+            self._serial.sendData(build_query_dip_switch_id())
 
     def _start_tune_param_refresh(self, post_write_readback: bool) -> None:
         """启动一轮 TUNE 页面参数读取或写后读回流程。"""
@@ -606,6 +640,16 @@ class BackendFacade(QObject):
         if self._motor_type_query_timer.isActive():
             self._motor_type_query_timer.stop()
 
+    def _start_dip_switch_query_loop(self) -> None:
+        """启动 1 秒拨码 ID 查询轮询。"""
+        if not self._dip_switch_query_timer.isActive():
+            self._dip_switch_query_timer.start()
+
+    def _stop_dip_switch_query_loop(self) -> None:
+        """停止拨码 ID 查询轮询。"""
+        if self._dip_switch_query_timer.isActive():
+            self._dip_switch_query_timer.stop()
+
     def _on_version_query_timer(self) -> None:
         """定时轮询：仅在版本仍为默认值时继续发送查询。"""
         if not self._serial.isConnected:
@@ -626,6 +670,16 @@ class BackendFacade(QObject):
             self._send_motor_type_query_once()
         else:
             self._stop_motor_type_query_loop()
+
+    def _on_dip_switch_query_timer(self) -> None:
+        """定时轮询：仅在拨码 ID 仍为未知值时继续发送查询。"""
+        if not self._serial.isConnected:
+            self._stop_dip_switch_query_loop()
+            return
+        if self._mcu_dip_switch_id == DEFAULT_DIP_SWITCH_ID:
+            self._send_dip_switch_query_once()
+        else:
+            self._stop_dip_switch_query_loop()
 
     @Slot(int, int, int, int)
     def _on_mcu_version_updated(self, main: int, sub: int, mini: int, fixed: int) -> None:
@@ -659,6 +713,19 @@ class BackendFacade(QObject):
                 self._start_motor_type_query_loop()
         else:
             self._stop_motor_type_query_loop()
+
+    @Slot(int)
+    def _on_mcu_dip_switch_id_updated(self, dip_id: int) -> None:
+        """收到拨码开关 ID 后更新缓存并通知 UI。"""
+        valid_id = dip_id if 0 <= dip_id <= 7 else DEFAULT_DIP_SWITCH_ID
+        self._mcu_dip_switch_id = valid_id
+        self.mcuDipSwitchIdUpdated.emit(valid_id)
+
+        if valid_id == DEFAULT_DIP_SWITCH_ID:
+            if self._serial.isConnected:
+                self._start_dip_switch_query_loop()
+        else:
+            self._stop_dip_switch_query_loop()
 
     @Slot(int, int, int, int, int, float)
     def _on_hall_telemetry_updated(
@@ -739,6 +806,12 @@ class BackendFacade(QObject):
             self.mcuMotorTypeUpdated.emit(self._mcu_motor_type)
         self._reset_hall_telemetry()
 
+    def _reset_mcu_dip_switch_id(self) -> None:
+        """将拨码 ID 复位到未知值，并在有变化时通知 UI。"""
+        if self._mcu_dip_switch_id != DEFAULT_DIP_SWITCH_ID:
+            self._mcu_dip_switch_id = DEFAULT_DIP_SWITCH_ID
+            self.mcuDipSwitchIdUpdated.emit(self._mcu_dip_switch_id)
+
     def _reset_hall_telemetry(self) -> None:
         """将霍尔遥测缓存复位到默认无效态。"""
         self._set_hall_telemetry(0, 0, 0, 0, -1, False)
@@ -784,15 +857,20 @@ class BackendFacade(QObject):
             if self._mcu_motor_type == DEFAULT_MOTOR_TYPE:
                 self._send_motor_type_query_once()
                 self._start_motor_type_query_loop()
+            if self._mcu_dip_switch_id == DEFAULT_DIP_SWITCH_ID:
+                self._send_dip_switch_query_once()
+                self._start_dip_switch_query_loop()
         else:
             self._stop_heartbeat()
             self._stop_version_query_loop()
             self._stop_motor_type_query_loop()
+            self._stop_dip_switch_query_loop()
             # 断开时同步清空解析缓冲，避免残留字节带到下一次连接
             self._processor.reset()
             self._dispatcher.reset_clock_sync()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
+            self._reset_mcu_dip_switch_id()
             self._reset_hall_telemetry()
             self._reset_abs_encoder_telemetry()
             self._reset_control_params()

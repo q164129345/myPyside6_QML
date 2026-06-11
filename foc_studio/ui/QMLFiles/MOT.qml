@@ -24,6 +24,7 @@ Rectangle {
     property int enableState: 0
     property string mcuSoftwareVersion: "0.0.0.0"
     property int mcuMotorType: 0
+    property int mcuDipSwitchId: 0xFF
     property var faultBitDefinitions: [
         { bit: 0, label: "驱动器过压" },
         { bit: 1, label: "驱动器欠压" },
@@ -76,12 +77,14 @@ Rectangle {
 
         root.mcuSoftwareVersion = backend.mcuSoftwareVersion
         root.mcuMotorType = backend.mcuMotorType
+        root.mcuDipSwitchId = backend.mcuDipSwitchId
     }
 
     onIsSerialConnectedChanged: {
         if (!root.isSerialConnected) {
             root.errorCode = 0
             root.hasErrorCodeData = false
+            root.mcuDipSwitchId = 0xFF
         }
     }
 
@@ -411,6 +414,15 @@ Rectangle {
                     }
 
                     TelemetryRow {
+                        label: "拨码ID"
+                        range: "(0~7)"
+                        value: root.isSerialConnected
+                               ? (root.mcuDipSwitchId === 0xFF ? "未知" : root.mcuDipSwitchId.toString())
+                               : "--"
+                        unit: ""
+                    }
+
+                    TelemetryRow {
                         label: "使能状态"
                         range: "(0/1)"
                         value: root.isSerialConnected ? (root.enableState !== 0 ? "已使能" : "未使能") : "--"
@@ -570,5 +582,6 @@ Rectangle {
         function onEnableStateUpdated(state) { root.enableState = state }
         function onMcuSoftwareVersionUpdated(versionText) { root.mcuSoftwareVersion = versionText }
         function onMcuMotorTypeUpdated(typeValue) { root.mcuMotorType = typeValue }
+        function onMcuDipSwitchIdUpdated(id) { root.mcuDipSwitchId = id }
     }
 }

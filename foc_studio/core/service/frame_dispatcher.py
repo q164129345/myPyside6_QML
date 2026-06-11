@@ -18,6 +18,7 @@
   CMD 0x72  电机限幅参数         2 * int32，按 1/1000000 还原为 float
   CMD 0x73  日志消息            uint8 + ASCII
   CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
+  CMD 0x71  拨码开关 ID          uint8
   CMD 0x75  绝对值编码器信息     2 * uint32 (pulse_counter, cpr)
 """
 
@@ -37,6 +38,7 @@ CMD_SOFTWARE_VERSION: int = 0x68
 CMD_DQ_COMPONENTS: int = 0x69
 CMD_MOTOR_CURRENT: int = 0x6A
 CMD_ERROR_CODE: int = 0x6C
+CMD_DIP_SWITCH_ID: int = 0x71
 CMD_MOTOR_TYPE: int = 0x6D
 CMD_SPEED_LOOP_PARAMS: int = 0x6E
 CMD_CURRENT_LOOP_PARAMS: int = 0x6F
@@ -59,6 +61,7 @@ class FrameDispatcher(QObject):
     motorCurrentUpdated = Signal(float, float)                # 电机电流 A, pc_timestamp_ms
 
     mcuMotorTypeUpdated = Signal(int)                         # 电机类型 0~255
+    mcuDipSwitchIdUpdated = Signal(int)                       # 拨码开关 ID 0~255
     speedLoopParamsUpdated = Signal(float, float, float, float, float)    # Kp, Ki, Kd, Ramp, Tf
     currentLoopParamsUpdated = Signal(
         float, float, float, float, float,  # Iq: Kp, Ki, Kd, Ramp, Tf
@@ -81,6 +84,7 @@ class FrameDispatcher(QObject):
             CMD_DQ_COMPONENTS: self._handle_dq_components,
             CMD_MOTOR_CURRENT: self._handle_motor_current,
             CMD_ERROR_CODE: self._handle_error_code,
+            CMD_DIP_SWITCH_ID: self._handle_dip_switch_id,
             CMD_MOTOR_TYPE: self._handle_motor_type,
             CMD_SPEED_LOOP_PARAMS: self._handle_speed_loop_params,
             CMD_CURRENT_LOOP_PARAMS: self._handle_current_loop_params,
@@ -177,6 +181,12 @@ class FrameDispatcher(QObject):
         if frame.datalen != 1:
             return
         self.mcuMotorTypeUpdated.emit(frame.data[0])
+
+    def _handle_dip_switch_id(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x71：拨码开关 ID。"""
+        if frame.datalen != 1:
+            return
+        self.mcuDipSwitchIdUpdated.emit(frame.data[0])
 
     def _handle_speed_loop_params(self, frame: ParsedFrame) -> None:
         """解码 CMD 0x6E：速度环 PID 参数，按 1/1000000 还原为工程量。"""
