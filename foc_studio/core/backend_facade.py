@@ -3,6 +3,7 @@ from typing import Any
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from core.command.dip_switch_command import build_query_dip_switch_id
+from core.command.flash_id_command import build_query_external_flash_id
 from core.command.motor_command import build_motor_control
 from core.command.motor_type_command import build_query_motor_type
 from core.command.pc_heartbeat_command import build_pc_heartbeat
@@ -25,6 +26,8 @@ from core.transport.serial import mySerial
 DEFAULT_MCU_VERSION = "0.0.0.0"
 DEFAULT_MOTOR_TYPE = 0
 DEFAULT_DIP_SWITCH_ID = 0xFF
+DEFAULT_FLASH_MANUFACTURER_ID: int = 0xFF
+DEFAULT_FLASH_DEVICE_ID: int = 0xFF
 TUNE_PARAM_READ_TIMEOUT_MS = 1500
 TUNE_PARAM_STATUS_IDLE = "未读取参数"
 TUNE_PARAM_STATUS_READING = "正在读取参数"
@@ -70,6 +73,7 @@ class BackendFacade(QObject):
 
     mcuMotorTypeUpdated = Signal(int)                 # 下位机电机类型（1~6，0=未知）
     mcuDipSwitchIdUpdated = Signal(int)               # 拨码开关 ID（0~7，0xFF=未知）
+    mcuExternalFlashIdUpdated = Signal(int, int)      # manufacturer_id, device_id（0xFF/0xFF=未知）
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C、hall_state、电气扇区、pc_ts
     hallTelemetryChanged = Signal()
     absEncoderTelemetryChanged = Signal()
@@ -106,6 +110,9 @@ class BackendFacade(QObject):
         self._mcu_motor_type: int = DEFAULT_MOTOR_TYPE
         # 拨码开关 ID 缓存，0xFF 表示尚未获取到有效值（有效范围 0~7）
         self._mcu_dip_switch_id: int = DEFAULT_DIP_SWITCH_ID
+        # 外部 Flash ID 缓存，0xFF/0xFF 表示尚未获取到响应
+        self._mcu_flash_manufacturer_id: int = DEFAULT_FLASH_MANUFACTURER_ID
+        self._mcu_flash_device_id: int = DEFAULT_FLASH_DEVICE_ID
         # 霍尔遥测缓存（供 POS 页面展示）：保存最近一次有效霍尔遥测，available 表示是否收到过有效帧
         self._hall_a: int = 0
         self._hall_b: int = 0
@@ -153,6 +160,11 @@ class BackendFacade(QObject):
         self._dip_switch_query_timer.setInterval(1000)
         self._dip_switch_query_timer.timeout.connect(self._on_dip_switch_query_timer)
 
+        # 外部 Flash ID 查询轮询定时器：连接后若 ID 仍是 0xFF/0xFF，每 1 秒发送一次 CMD 0x0E
+        self._flash_id_query_timer = QTimer(self)
+        self._flash_id_query_timer.setInterval(1000)
+        self._flash_id_query_timer.timeout.connect(self._on_flash_id_query_timer)
+
         # TUNE 页面参数超时定时器：读取或写后读回超时后复位 busy 并更新状态
         self._tune_param_timeout_timer = QTimer(self)
         self._tune_param_timeout_timer.setSingleShot(True)
@@ -179,6 +191,7 @@ class BackendFacade(QObject):
         self._dispatcher.mcuSoftwareVersionUpdated.connect(self._on_mcu_version_updated)
         self._dispatcher.mcuMotorTypeUpdated.connect(self._on_mcu_motor_type_updated)
         self._dispatcher.mcuDipSwitchIdUpdated.connect(self._on_mcu_dip_switch_id_updated)
+        self._dispatcher.mcuExternalFlashIdUpdated.connect(self._on_mcu_external_flash_id_updated)
         self._dispatcher.hallTelemetryUpdated.connect(self._on_hall_telemetry_updated)
         self._dispatcher.absEncoderTelemetryUpdated.connect(self._on_abs_encoder_telemetry_updated)
         self._dispatcher.speedLoopParamsUpdated.connect(self._on_speed_loop_params_updated)
@@ -223,6 +236,16 @@ class BackendFacade(QObject):
     def mcuDipSwitchId(self) -> int:
         """QML 只读属性：拨码开关 ID（0xFF=未知，有效范围 0~7）。"""
         return self._mcu_dip_switch_id
+
+    @Property(int, notify=mcuExternalFlashIdUpdated)  # type: ignore
+    def mcuFlashManufacturerId(self) -> int:
+        """QML 只读属性：外部 Flash 厂商 ID（0xFF=未知）。"""
+        return self._mcu_flash_manufacturer_id
+
+    @Property(int, notify=mcuExternalFlashIdUpdated)  # type: ignore
+    def mcuFlashDeviceId(self) -> int:
+        """QML 只读属性：外部 Flash 设备 ID（0xFF=未知）。"""
+        return self._mcu_flash_device_id
 
     @Property(int, notify=hallTelemetryChanged)  # type: ignore
     def hallA(self) -> int:
@@ -462,6 +485,33 @@ class BackendFacade(QObject):
         """连接状态下发送一次 CMD 0x0D 拨码 ID 查询帧。"""
         if self._serial.isConnected:
             self._serial.sendData(build_query_dip_switch_id())
+
+    def _send_external_flash_id_query_once(self) -> None:
+        """连接状态下发送一次 CMD 0x0E 外部 Flash ID 查询帧。"""
+        if self._serial.isConnected:
+            self._serial.sendData(build_query_external_flash_id())
+
+    def _start_flash_id_query_loop(self) -> None:
+        """启动 1 秒外部 Flash ID 查询轮询。"""
+        if not self._flash_id_query_timer.isActive():
+            self._flash_id_query_timer.start()
+
+    def _stop_flash_id_query_loop(self) -> None:
+        """停止外部 Flash ID 查询轮询。"""
+        if self._flash_id_query_timer.isActive():
+            self._flash_id_query_timer.stop()
+
+    def _on_flash_id_query_timer(self) -> None:
+        """定时轮询：仅在 Flash ID 仍为未知值时继续发送查询。"""
+        if not self._serial.isConnected:
+            self._stop_flash_id_query_loop()
+            return
+        both_unknown = (self._mcu_flash_manufacturer_id == DEFAULT_FLASH_MANUFACTURER_ID
+                        and self._mcu_flash_device_id == DEFAULT_FLASH_DEVICE_ID)
+        if both_unknown:
+            self._send_external_flash_id_query_once()
+        else:
+            self._stop_flash_id_query_loop()
 
     def _start_tune_param_refresh(self, post_write_readback: bool) -> None:
         """启动一轮 TUNE 页面参数读取或写后读回流程。"""
@@ -728,6 +778,33 @@ class BackendFacade(QObject):
         else:
             self._stop_dip_switch_query_loop()
 
+    @Slot(int, int)
+    def _on_mcu_external_flash_id_updated(self, manufacturer_id: int, device_id: int) -> None:
+        """收到外部 Flash ID 后更新缓存并通知 UI。"""
+        if (self._mcu_flash_manufacturer_id != manufacturer_id
+                or self._mcu_flash_device_id != device_id):
+            self._mcu_flash_manufacturer_id = manufacturer_id
+            self._mcu_flash_device_id = device_id
+            self.mcuExternalFlashIdUpdated.emit(manufacturer_id, device_id)
+        both_unknown = (manufacturer_id == DEFAULT_FLASH_MANUFACTURER_ID
+                        and device_id == DEFAULT_FLASH_DEVICE_ID)
+        if both_unknown:
+            if self._serial.isConnected:
+                self._start_flash_id_query_loop()
+        else:
+            self._stop_flash_id_query_loop()
+
+    def _reset_mcu_external_flash_id(self) -> None:
+        """将外部 Flash ID 复位到默认值，并在有变化时通知 UI。"""
+        if (self._mcu_flash_manufacturer_id != DEFAULT_FLASH_MANUFACTURER_ID
+                or self._mcu_flash_device_id != DEFAULT_FLASH_DEVICE_ID):
+            self._mcu_flash_manufacturer_id = DEFAULT_FLASH_MANUFACTURER_ID
+            self._mcu_flash_device_id = DEFAULT_FLASH_DEVICE_ID
+            self.mcuExternalFlashIdUpdated.emit(
+                self._mcu_flash_manufacturer_id,
+                self._mcu_flash_device_id,
+            )
+
     @Slot(int, int, int, int, int, float)
     def _on_hall_telemetry_updated(
         self,
@@ -861,17 +938,23 @@ class BackendFacade(QObject):
             if self._mcu_dip_switch_id == DEFAULT_DIP_SWITCH_ID:
                 self._send_dip_switch_query_once()
                 self._start_dip_switch_query_loop()
+            if (self._mcu_flash_manufacturer_id == DEFAULT_FLASH_MANUFACTURER_ID
+                    and self._mcu_flash_device_id == DEFAULT_FLASH_DEVICE_ID):
+                self._send_external_flash_id_query_once()
+                self._start_flash_id_query_loop()
         else:
             self._stop_heartbeat()
             self._stop_version_query_loop()
             self._stop_motor_type_query_loop()
             self._stop_dip_switch_query_loop()
+            self._stop_flash_id_query_loop()
             # 断开时同步清空解析缓冲，避免残留字节带到下一次连接
             self._processor.reset()
             self._dispatcher.reset_clock_sync()
             self._reset_mcu_version()
             self._reset_mcu_motor_type()
             self._reset_mcu_dip_switch_id()
+            self._reset_mcu_external_flash_id()
             self._reset_hall_telemetry()
             self._reset_abs_encoder_telemetry()
             self._reset_control_params()

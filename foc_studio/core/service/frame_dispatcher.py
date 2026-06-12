@@ -20,6 +20,7 @@
   CMD 0x73  日志消息            uint8 + ASCII
   CMD 0x74  霍尔状态            4 * uint8 + 1 * int8 + uint32 tick_ms
   CMD 0x75  绝对值编码器信息     2 * uint32 (pulse_counter, cpr)
+  CMD 0x76  外部 Flash ID        2 * uint8 (manufacturer_id, device_id)
 """
 
 import struct
@@ -46,6 +47,7 @@ CMD_MOTOR_LIMITS: int = 0x72
 CMD_LOG_MESSAGE: int = 0x73
 CMD_HALL_SENSOR_STATE: int = 0x74
 CMD_ABSOLUTE_SENSOR_INFO: int = 0x75
+CMD_EXTERNAL_FLASH_ID: int = 0x76
 
 
 class FrameDispatcher(QObject):
@@ -71,6 +73,7 @@ class FrameDispatcher(QObject):
     logMessageReceived = Signal(int, str)                     # level(0=INFO,1=WARN,2=ERROR), message
     hallTelemetryUpdated = Signal(int, int, int, int, int, float)  # Hall A/B/C, hall_state, sector, pc_ts
     absEncoderTelemetryUpdated = Signal(int, int)              # pulse_counter, cpr
+    mcuExternalFlashIdUpdated = Signal(int, int)               # manufacturer_id, device_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,6 +95,7 @@ class FrameDispatcher(QObject):
             CMD_LOG_MESSAGE: self._handle_log_message,
             CMD_HALL_SENSOR_STATE: self._handle_hall_sensor_state,
             CMD_ABSOLUTE_SENSOR_INFO: self._handle_absolute_sensor_info,
+            CMD_EXTERNAL_FLASH_ID: self._handle_external_flash_id,
         }
 
     def reset_clock_sync(self) -> None:
@@ -263,3 +267,9 @@ class FrameDispatcher(QObject):
             return
         pulse_counter, cpr = struct.unpack_from(">II", frame.data, 0)
         self.absEncoderTelemetryUpdated.emit(pulse_counter, cpr)
+
+    def _handle_external_flash_id(self, frame: ParsedFrame) -> None:
+        """解码 CMD 0x76：外部 Flash 的 Manufacturer ID 与 Device ID。"""
+        if frame.datalen != 2:
+            return
+        self.mcuExternalFlashIdUpdated.emit(frame.data[0], frame.data[1])

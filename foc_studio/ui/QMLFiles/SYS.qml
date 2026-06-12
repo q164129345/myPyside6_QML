@@ -11,7 +11,7 @@ Rectangle {
 
     // 串口波特率
     readonly property int baudRate: 460800
-    readonly property string softwareVersion: "v0.0.0.20"
+    readonly property string softwareVersion: "v0.0.0.21"
 
     // 接收串口连接状态
     property bool isSerialConnected: false
@@ -26,8 +26,19 @@ Rectangle {
     property int rxBytesPerSec: 0
     property int rxCrcErrorCount: 0
     property int rxInvalidFrameCount: 0
+    property int mcuFlashManufacturerId: 0xFF
+    property int mcuFlashDeviceId: 0xFF
 
     // 页面激活时批量同步一次统计快照，避免隐藏页持续跟随后端 1 秒统计刷新
+    function flashManufacturerName(id) {
+        if (id === 0xEF) return "Winbond"
+        if (id === 0xC8) return "GigaDevice"
+        if (id === 0x20) return "Micron/ST"
+        if (id === 0xBF) return "Microchip"
+        if (id === 0xA1) return "Fudan"
+        return ""
+    }
+
     function syncStatisticsFromBackend() {
         if (!backend)
             return
@@ -198,6 +209,59 @@ Rectangle {
             radius: 8
             border.color: "#bdc3c7"
             border.width: 1
+            implicitHeight: 90
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Text {
+                    text: "外部 Flash 信息"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: "#2c3e50"
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 32
+                    rowSpacing: 6
+
+                    Text {
+                        text: {
+                            if (!root.isSerialConnected) return "制造商ID: --"
+                            if (root.mcuFlashManufacturerId === 0xFF && root.mcuFlashDeviceId === 0xFF)
+                                return "制造商ID: 查询中..."
+                            var name = root.flashManufacturerName(root.mcuFlashManufacturerId)
+                            var hex = "0x" + root.mcuFlashManufacturerId.toString(16).toUpperCase().padStart(2, '0')
+                            return "制造商ID: " + hex + (name ? " (" + name + ")" : "")
+                        }
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+
+                    Text {
+                        text: {
+                            if (!root.isSerialConnected) return "设备ID: --"
+                            if (root.mcuFlashManufacturerId === 0xFF && root.mcuFlashDeviceId === 0xFF)
+                                return "设备ID: 查询中..."
+                            return "设备ID: 0x" + root.mcuFlashDeviceId.toString(16).toUpperCase().padStart(2, '0')
+                        }
+                        font.pixelSize: 13
+                        color: "#2c3e50"
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            color: "white"
+            radius: 8
+            border.color: "#bdc3c7"
+            border.width: 1
             implicitHeight: 200
 
             ColumnLayout {
@@ -298,6 +362,10 @@ Rectangle {
         function onRxBytesPerSecChanged()     { root.rxBytesPerSec = backend.rxBytesPerSec }
         function onRxCrcErrorCountChanged()   { root.rxCrcErrorCount = backend.rxCrcErrorCount }
         function onRxInvalidFrameCountChanged() { root.rxInvalidFrameCount = backend.rxInvalidFrameCount }
+        function onMcuExternalFlashIdUpdated(mfgId, devId) {
+            root.mcuFlashManufacturerId = mfgId
+            root.mcuFlashDeviceId = devId
+        }
     }
 
     onIsPageActiveChanged: {
@@ -311,6 +379,8 @@ Rectangle {
             root.portListModel = backend.portsList
             if (root.isPageActive)
                 root.syncStatisticsFromBackend()
+            root.mcuFlashManufacturerId = backend.mcuFlashManufacturerId
+            root.mcuFlashDeviceId = backend.mcuFlashDeviceId
             if (backend.portsList.length > 0) {
                 portComboBox.currentIndex = -1  // 不自动选择
             }
