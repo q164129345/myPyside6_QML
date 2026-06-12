@@ -788,10 +788,7 @@ class BackendFacade(QObject):
             self.mcuExternalFlashIdUpdated.emit(manufacturer_id, device_id)
         both_unknown = (manufacturer_id == DEFAULT_FLASH_MANUFACTURER_ID
                         and device_id == DEFAULT_FLASH_DEVICE_ID)
-        if both_unknown:
-            if self._serial.isConnected:
-                self._start_flash_id_query_loop()
-        else:
+        if not both_unknown:
             self._stop_flash_id_query_loop()
 
     def _reset_mcu_external_flash_id(self) -> None:
