@@ -1,5 +1,4 @@
-// CHT 波形页面
-import QtGraphs
+// CHT 波形页面 —— 速度 / 电流实时波形
 import QtQuick
 import QtQuick.Layouts
 
@@ -14,493 +13,14 @@ Rectangle {
     property bool isPageActive: false
     property int currentSpeed: 0
     property real currentCurrent: 0.0
-    property int chartRefreshIntervalMs: 50
-    property int axisRefreshIntervalMs: 250
-    property int axisIdleGraceMs: 200
-    property int timeWindowMs: 5000
-    property var speedSamples: []
-    property var currentSamples: []
-    property var pendingSpeedSamples: []
-    property var pendingCurrentSamples: []
-    property int speedSampleCount: 0
-    property int currentSampleCount: 0
-    property double chartStartTimestampMs: 0
-    property double latestTimestampMs: 0
-    property double lastAxisRefreshTimestampMs: 0
-    property double _smoothAxisMs: 0.0
-    property real axisMinSeconds: 0.0
-    property real axisMaxSeconds: timeWindowMs / 1000.0
-    property real speedAxisMinValue: -3000.0
-    property real speedAxisMaxValue: 3000.0
-    property real currentAxisMinValue: 0.0
-    property real currentAxisMaxValue: 0.4
 
-    // 将会话内毫秒时间戳换算成图表 X 坐标，避免每次刷新都重写整条曲线
-    function sampleToXValue(timestampMs) {
-        return (timestampMs - root.chartStartTimestampMs) / 1000.0
-    }
-
-    // 将待刷新的样本增量追加到曲线尾部，避免 clear + append 全量重建
-    function appendPendingSamples(samples, pendingSamples, series) {
-        if (pendingSamples.length === 0)
-            return false
-
-        for (var index = 0; index < pendingSamples.length; index += 1) {
-            var sample = pendingSamples[index]
-            sample.xValue = root.sampleToXValue(sample.timestamp)
-            samples.push(sample)
-            series.append(sample.xValue, sample.value)
-        }
-        return true
-    }
-
-    // 仅从历史窗口头部移除过期点，保持图表更新复杂度与新增样本数一致
-    function trimSeriesHead(samples, series, minTimestamp) {
-        var removeCount = 0
-
-        while (removeCount < samples.length && samples[removeCount].timestamp < minTimestamp)
-            removeCount += 1
-
-        if (removeCount <= 0)
-            return
-
-        samples.splice(0, removeCount)
-        series.removeMultiple(0, removeCount)
-    }
-
-    // X 轴改为独立时钟平滑滑动，避免跟随样本批量到达而偶发跳动
-    function updateTimeAxisWindow(referenceTimestampMs) {
-        if (referenceTimestampMs <= 0 || root.chartStartTimestampMs <= 0) {
-            root.axisMinSeconds = 0.0
-            root.axisMaxSeconds = root.timeWindowMs / 1000.0
-            return
-        }
-
-        var latestSeconds = root.sampleToXValue(referenceTimestampMs)
-        var windowSeconds = root.timeWindowMs / 1000.0
-        var axisMax = Math.max(windowSeconds, latestSeconds)
-        root.axisMinSeconds = Math.max(0.0, axisMax - windowSeconds)
-        root.axisMaxSeconds = axisMax
-    }
-
-    // 使用帧时间（frameTime）平滑推进横轴，避免 Date.now() 在 Windows 上
-    // 约 15ms 步进精度导致的轴标签跳动；若遥测停止则冻结窗口。
-    function tickAxisWindow() {
-        if (!root.isPageActive || root.chartStartTimestampMs <= 0 || root.latestTimestampMs <= 0) {
-            root._smoothAxisMs = 0.0
-            axisFrameAnimation.stop()
-            return
-        }
-
-        var nowMs = Date.now()
-        if (nowMs - root.latestTimestampMs > root.axisIdleGraceMs) {
-            root.updateTimeAxisWindow(root.latestTimestampMs)
-            root._smoothAxisMs = 0.0
-            axisFrameAnimation.stop()
-            return
-        }
-
-        // 首次启动或动画重启后重新锚定；过于滞后时也重新锚定（不向后跳）
-        if (root._smoothAxisMs <= 0 || root._smoothAxisMs < root.latestTimestampMs - 1000)
-            root._smoothAxisMs = root.latestTimestampMs
-
-        // frameTime 由 vsync 驱动，无 Date.now() 的 15ms 步进抖动
-        // 限制单帧最大步进（防止动画重启后首帧 frameTime 过大导致的前跳）
-        root._smoothAxisMs += Math.min(axisFrameAnimation.frameTime * 1000.0, 50.0)
-
-        root.updateTimeAxisWindow(root._smoothAxisMs)
-    }
-
-    // 页面激活且已有样本时启动横轴帧动画，保证窗口推进节奏与显示刷新同步
-    function ensureAxisScrollRunning() {
-        if (root.isPageActive && root.chartStartTimestampMs > 0 && root.latestTimestampMs > 0
-                && !axisFrameAnimation.running) {
-            axisFrameAnimation.start()
-        }
-    }
-
-    // 当前值超出坐标轴时立即重算，正常情况下按较低频率更新 Y 轴
-    function shouldRefreshAxis(latestValue, axisMin, axisMax) {
-        return latestValue < axisMin || latestValue > axisMax
-    }
-
-    // 将 Y 轴的全量扫描降到低频执行，减少图表布局与重绘抖动
-    function maybeRefreshAxisRanges(forceRefresh) {
-        if (root.latestTimestampMs <= 0) {
-            root.updateSpeedAxisRange([])
-            root.updateCurrentAxisRange([])
-            return
-        }
-
-        var shouldRefresh = forceRefresh
-                            || root.lastAxisRefreshTimestampMs <= 0
-                            || root.latestTimestampMs - root.lastAxisRefreshTimestampMs >= root.axisRefreshIntervalMs
-                            || root.shouldRefreshAxis(root.currentSpeed, root.speedAxisMinValue, root.speedAxisMaxValue)
-                            || root.shouldRefreshAxis(root.currentCurrent, root.currentAxisMinValue, root.currentAxisMaxValue)
-        if (!shouldRefresh)
-            return
-
-        root.updateSpeedAxisRange(root.speedSamples)
-        root.updateCurrentAxisRange(root.currentSamples)
-        root.lastAxisRefreshTimestampMs = root.latestTimestampMs
-    }
-
-    // 将高频遥测先缓存成批，等下一次定时刷新时统一并入曲线
-    function enqueueTelemetry(isSpeedSample, value, timestampMs) {
-        var sample = { "timestamp": timestampMs, "value": value }
-        if (isSpeedSample)
-            root.pendingSpeedSamples.push(sample)
-        else
-            root.pendingCurrentSamples.push(sample)
-
-        root.scheduleFlushPendingTelemetry()
-    }
-
-    // 仅在存在新遥测时启动刷新定时器，避免图表页前台空转。
-    function scheduleFlushPendingTelemetry() {
-        if (root.isPageActive && !chartRefreshTimer.running)
-            chartRefreshTimer.start()
-    }
-
-    // 固定刷新频率读取最近一次遥测值，把高频信号收敛为可控的 UI 刷新节奏
-    function flushPendingTelemetry() {
-        if (!root.isPageActive)
-            return
-
-        var latestTimestampMs = root.latestTimestampMs
-        var hasNewSamples = false
-
-        if (root.pendingSpeedSamples.length > 0) {
-            latestTimestampMs = Math.max(
-                        latestTimestampMs,
-                        root.pendingSpeedSamples[root.pendingSpeedSamples.length - 1].timestamp)
-            hasNewSamples = true
-        }
-
-        if (root.pendingCurrentSamples.length > 0) {
-            latestTimestampMs = Math.max(
-                        latestTimestampMs,
-                        root.pendingCurrentSamples[root.pendingCurrentSamples.length - 1].timestamp)
-            hasNewSamples = true
-        }
-
-        if (!hasNewSamples) {
-            chartRefreshTimer.stop()
-            return
-        }
-
-        if (root.chartStartTimestampMs <= 0) {
-            var earliestTimestampMs = latestTimestampMs
-            if (root.pendingSpeedSamples.length > 0)
-                earliestTimestampMs = Math.min(earliestTimestampMs, root.pendingSpeedSamples[0].timestamp)
-            if (root.pendingCurrentSamples.length > 0)
-                earliestTimestampMs = Math.min(earliestTimestampMs, root.pendingCurrentSamples[0].timestamp)
-            root.chartStartTimestampMs = earliestTimestampMs
-        }
-
-        root.appendPendingSamples(root.speedSamples, root.pendingSpeedSamples, speedSeries)
-        root.appendPendingSamples(root.currentSamples, root.pendingCurrentSamples, currentSeries)
-        root.pendingSpeedSamples = []
-        root.pendingCurrentSamples = []
-        root.latestTimestampMs = latestTimestampMs
-        var minTimestamp = root.latestTimestampMs - root.timeWindowMs
-        root.trimSeriesHead(root.speedSamples, speedSeries, minTimestamp)
-        root.trimSeriesHead(root.currentSamples, currentSeries, minTimestamp)
-        root.speedSampleCount = root.speedSamples.length
-        root.currentSampleCount = root.currentSamples.length
-        root.ensureAxisScrollRunning()
-        root.maybeRefreshAxisRanges(false)
-        chartRefreshTimer.stop()
-    }
-
-    // 根据最近 5 秒转速样本自适应 Y 轴，兼顾低速电机与高速电机的显示分辨率
-    function updateSpeedAxisRange(samples) {
-        if (samples.length === 0) {
-            root.speedAxisMinValue = -3000.0
-            root.speedAxisMaxValue = 3000.0
-            return
-        }
-
-        var minValue = samples[0].value
-        var maxValue = samples[0].value
-        for (var index = 1; index < samples.length; index += 1) {
-            var sampleValue = samples[index].value
-            minValue = Math.min(minValue, sampleValue)
-            maxValue = Math.max(maxValue, sampleValue)
-        }
-
-        var axisMin = minValue
-        var axisMax = maxValue
-
-        if (axisMin >= 0)
-            axisMin = 0
-        else if (axisMax <= 0)
-            axisMax = 0
-
-        var span = axisMax - axisMin
-        var minimumSpan = 200.0
-        if (span < minimumSpan) {
-            if (axisMin >= 0) {
-                axisMax = axisMin + minimumSpan
-            } else if (axisMax <= 0) {
-                axisMin = axisMax - minimumSpan
-            } else {
-                var centerValue = (axisMin + axisMax) / 2.0
-                axisMin = centerValue - minimumSpan / 2.0
-                axisMax = centerValue + minimumSpan / 2.0
-            }
-            span = axisMax - axisMin
-        }
-
-        var padding = Math.max(span * 0.15, 30.0)
-        if (axisMin >= 0)
-            axisMin = Math.max(0, axisMin - padding)
-        else
-            axisMin = axisMin - padding
-
-        if (axisMax <= 0)
-            axisMax = Math.min(0, axisMax + padding)
-        else
-            axisMax = axisMax + padding
-
-        root.speedAxisMinValue = axisMin
-        root.speedAxisMaxValue = axisMax
-    }
-
-    // 根据最近 5 秒电流样本自适应 Y 轴，兼顾 0A 基线与小电流可读性
-    function updateCurrentAxisRange(samples) {
-        if (samples.length === 0) {
-            root.currentAxisMinValue = 0.0
-            root.currentAxisMaxValue = 0.3
-            return
-        }
-
-        var minValue = samples[0].value
-        var maxValue = samples[0].value
-        for (var index = 1; index < samples.length; index += 1) {
-            var sampleValue = samples[index].value
-            minValue = Math.min(minValue, sampleValue)
-            maxValue = Math.max(maxValue, sampleValue)
-        }
-
-        var axisMin = minValue
-        var axisMax = maxValue
-
-        if (axisMin >= 0)
-            axisMin = 0
-        else if (axisMax <= 0)
-            axisMax = 0
-
-        var span = axisMax - axisMin
-        var minimumSpan = 0.4
-        if (span < minimumSpan) {
-            if (axisMin >= 0) {
-                axisMax = axisMin + minimumSpan
-            } else if (axisMax <= 0) {
-                axisMin = axisMax - minimumSpan
-            } else {
-                var centerValue = (axisMin + axisMax) / 2.0
-                axisMin = centerValue - minimumSpan / 2.0
-                axisMax = centerValue + minimumSpan / 2.0
-            }
-            span = axisMax - axisMin
-        }
-
-        var padding = Math.max(span * 0.15, 0.1)
-        if (axisMin >= 0)
-            axisMin = Math.max(0, axisMin - padding)
-        else
-            axisMin = axisMin - padding
-
-        if (axisMax <= 0)
-            axisMax = Math.min(0, axisMax + padding)
-        else
-            axisMax = axisMax + padding
-
-        root.currentAxisMinValue = axisMin
-        root.currentAxisMaxValue = axisMax
-    }
-
-    // 断开串口后清空控制输入与波形缓存，避免显示旧会话数据
-    function resetCharts() {
-        root.speedSamples = []
-        root.currentSamples = []
-        root.pendingSpeedSamples = []
-        root.pendingCurrentSamples = []
-        root.speedSampleCount = 0
-        root.currentSampleCount = 0
-        root.chartStartTimestampMs = 0
-        root.latestTimestampMs = 0
-        root.lastAxisRefreshTimestampMs = 0
-        root._smoothAxisMs = 0.0
-        root.axisMinSeconds = 0.0
-        root.axisMaxSeconds = root.timeWindowMs / 1000.0
-        root.speedAxisMinValue = -3000.0
-        root.speedAxisMaxValue = 3000.0
-        root.currentAxisMinValue = 0.0
-        root.currentAxisMaxValue = 0.4
-        speedSeries.clear()
-        currentSeries.clear()
-        axisFrameAnimation.stop()
-    }
-
-    Timer {
-        id: chartRefreshTimer
-        interval: root.chartRefreshIntervalMs
-        repeat: false
-        running: false
-        onTriggered: root.flushPendingTelemetry()
-    }
-
-    FrameAnimation {
-        id: axisFrameAnimation
-        running: false
-        onTriggered: root.tickAxisWindow()
-    }
-
+    // 断开串口后复位当前值与波形（输入框由 MotorControlBar 自行清空）
     onIsSerialConnectedChanged: {
         if (!root.isSerialConnected) {
-            speedInput.text = ""
             root.currentSpeed = 0
             root.currentCurrent = 0.0
-            root.resetCharts()
-        }
-    }
-
-    onIsPageActiveChanged: {
-        if (!root.isPageActive) {
-            chartRefreshTimer.stop()
-            root.resetCharts()
-            return
-        }
-
-        root.ensureAxisScrollRunning()
-        if (root.pendingSpeedSamples.length > 0 || root.pendingCurrentSamples.length > 0)
-            root.scheduleFlushPendingTelemetry()
-    }
-
-    // 输入框组件：用于目标速度输入
-    component InputField: Rectangle {
-        id: control
-        property alias text: input.text
-        property alias validator: input.validator
-        property string placeholderText: ""
-        property int fontPixelSize: 13
-        property int horizontalAlignment: TextInput.AlignLeft
-        readonly property bool acceptableInput: input.acceptableInput
-
-        implicitWidth: 110
-        implicitHeight: 28
-        radius: 4
-        color: control.enabled ? "white" : "#dde1e4"
-        border.color: input.activeFocus ? "#3498db" : "#bdc3c7"
-        border.width: 1
-
-        Text {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            text: control.placeholderText
-            font.pixelSize: control.fontPixelSize
-            color: "#95a5a6"
-            verticalAlignment: Text.AlignVCenter
-            horizontalAlignment: control.horizontalAlignment
-            visible: input.text.length === 0
-        }
-
-        TextInput {
-            id: input
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            font.pixelSize: control.fontPixelSize
-            color: control.enabled ? "#2c3e50" : "#7f8c8d"
-            enabled: control.enabled
-            verticalAlignment: TextInput.AlignVCenter
-            horizontalAlignment: control.horizontalAlignment
-            selectByMouse: control.enabled
-            clip: true
-        }
-    }
-
-    // 操作按钮组件：统一启动/停止按钮样式和点击行为
-    component ActionButton: Rectangle {
-        id: control
-        property string text: ""
-        property color normalColor: "#27ae60"
-        property color pressedColor: normalColor
-        signal clicked()
-
-        implicitWidth: 70
-        implicitHeight: 28
-        radius: 5
-        color: control.enabled
-               ? (buttonArea.pressed ? control.pressedColor : control.normalColor)
-               : "#bdc3c7"
-
-        Text {
-            anchors.centerIn: parent
-            text: control.text
-            font.pixelSize: 12
-            font.bold: true
-            color: "white"
-        }
-
-        MouseArea {
-            id: buttonArea
-            anchors.fill: parent
-            enabled: control.enabled
-            cursorShape: control.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: control.clicked()
-        }
-    }
-
-    // 波形卡片组件：统一标题、当前值和波形容器外观
-    component GraphPanel: Rectangle {
-        id: panel
-        property string title: ""
-        property string currentValueText: "--"
-        default property alias graphContent: graphContainer.data
-
-        Layout.fillWidth: true
-        implicitHeight: 250
-        color: "white"
-        border.color: "#bdc3c7"
-        border.width: 1
-        radius: 8
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 6
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text: panel.title
-                    font.pixelSize: 12
-                    font.bold: true
-                    color: "#2c3e50"
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                Text {
-                    text: panel.currentValueText
-                    font.pixelSize: 12
-                    font.bold: true
-                    color: "#2980b9"
-                }
-            }
-
-            Item {
-                id: graphContainer
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-            }
+            speedChart.reset()
+            currentChart.reset()
         }
     }
 
@@ -509,85 +29,8 @@ Rectangle {
         anchors.margins: 12
         spacing: 8
 
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 72
-            color: "white"
-            border.color: "#bdc3c7"
-            border.width: 1
-            radius: 8
-
-            Text {
-                text: "控制"
-                font.pixelSize: 12
-                font.bold: true
-                color: "#2c3e50"
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: 6
-            }
-
-            RowLayout {
-                anchors.top: parent.top
-                anchors.topMargin: 26
-                anchors.left: parent.left
-                anchors.leftMargin: 16
-                anchors.right: parent.right
-                anchors.rightMargin: 16
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 8
-                spacing: 10
-
-                Text {
-                    text: "目标速度:"
-                    font.pixelSize: 13
-                    color: "#2c3e50"
-                    verticalAlignment: Text.AlignVCenter
-                    Layout.alignment: Qt.AlignVCenter
-                }
-
-                InputField {
-                    id: speedInput
-                    Layout.alignment: Qt.AlignVCenter
-                    placeholderText: "例如: 1500"
-                    horizontalAlignment: TextInput.AlignRight
-                    enabled: root.isSerialConnected
-                    validator: IntValidator {
-                        bottom: -10000
-                        top: 10000
-                    }
-                }
-
-                Text {
-                    text: "RPM"
-                    font.pixelSize: 13
-                    color: "#7f8c8d"
-                    verticalAlignment: Text.AlignVCenter
-                    Layout.alignment: Qt.AlignVCenter
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                ActionButton {
-                    text: "启动"
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: root.isSerialConnected && speedInput.acceptableInput
-                    normalColor: "#27ae60"
-                    pressedColor: "#1e8449"
-                    onClicked: backend.setMotorControl(1, parseInt(speedInput.text))
-                }
-
-                ActionButton {
-                    text: "停止"
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: root.isSerialConnected
-                    normalColor: "#e74c3c"
-                    pressedColor: "#c0392b"
-                    onClicked: backend.setMotorControl(0, 0)
-                }
-            }
+        MotorControlBar {
+            isSerialConnected: root.isSerialConnected
         }
 
         GraphPanel {
@@ -595,36 +38,19 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: 220
             title: "速度波形"
-            currentValueText: root.isSerialConnected && root.speedSampleCount > 0
+            currentValueText: root.isSerialConnected && speedChart.totalSampleCount > 0
                               ? (root.currentSpeed.toString() + " RPM")
                               : "--"
 
-            GraphsView {
+            TelemetryChart {
+                id: speedChart
                 anchors.fill: parent
-                theme: GraphsTheme {
-                    colorScheme: GraphsTheme.ColorScheme.Dark
-                    backgroundColor: "#262626"
-                    plotAreaBackgroundColor: "#262626"
-                    grid.mainColor: "#4a4a4a"
-                    grid.subColor: "#333333"
-                    axisX.labelTextColor: "#a8b0b8"
-                    axisY.labelTextColor: "#a8b0b8"
-                }
-                axisX: ValueAxis {
-                    id: speedAxisX
-                    min: root.axisMinSeconds
-                    max: root.axisMaxSeconds
-                }
-                axisY: ValueAxis {
-                    id: speedAxisY
-                    min: root.speedAxisMinValue
-                    max: root.speedAxisMaxValue
-                }
-
-                LineSeries {
-                    id: speedSeries
-                    color: '#0731ee'
-                }
+                active: root.isPageActive
+                seriesColors: ["#0731ee"]
+                defaultAxisMin: -3000.0
+                defaultAxisMax: 3000.0
+                axisMinSpan: 200.0
+                axisPaddingMin: 30.0
             }
         }
 
@@ -633,36 +59,19 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: 220
             title: "电流波形"
-            currentValueText: root.isSerialConnected && root.currentSampleCount > 0
+            currentValueText: root.isSerialConnected && currentChart.totalSampleCount > 0
                               ? (root.currentCurrent.toFixed(3) + " A")
                               : "--"
 
-            GraphsView {
+            TelemetryChart {
+                id: currentChart
                 anchors.fill: parent
-                theme: GraphsTheme {
-                    colorScheme: GraphsTheme.ColorScheme.Dark
-                    backgroundColor: "#262626"
-                    plotAreaBackgroundColor: "#262626"
-                    grid.mainColor: "#4a4a4a"
-                    grid.subColor: "#333333"
-                    axisX.labelTextColor: "#a8b0b8"
-                    axisY.labelTextColor: "#a8b0b8"
-                }
-                axisX: ValueAxis {
-                    id: currentAxisX
-                    min: root.axisMinSeconds
-                    max: root.axisMaxSeconds
-                }
-                axisY: ValueAxis {
-                    id: currentAxisY
-                    min: root.currentAxisMinValue
-                    max: root.currentAxisMaxValue
-                }
-
-                LineSeries {
-                    id: currentSeries
-                    color: '#dff708'
-                }
+                active: root.isPageActive
+                seriesColors: ["#dff708"]
+                defaultAxisMin: 0.0
+                defaultAxisMax: 0.4
+                axisMinSpan: 0.4
+                axisPaddingMin: 0.1
             }
         }
     }
@@ -674,12 +83,12 @@ Rectangle {
         // 后端信号驱动页面状态与曲线刷新，保持 UI 不接触协议层
         function onSpeedUpdated(rpm, timestampMs) {
             root.currentSpeed = rpm
-            root.enqueueTelemetry(true, rpm, timestampMs)
+            speedChart.pushSample(0, rpm, timestampMs)
         }
 
         function onMotorCurrentUpdated(amps, timestampMs) {
             root.currentCurrent = amps
-            root.enqueueTelemetry(false, amps, timestampMs)
+            currentChart.pushSample(0, amps, timestampMs)
         }
     }
 }
